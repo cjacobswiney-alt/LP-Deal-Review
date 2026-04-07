@@ -205,7 +205,7 @@ function AnalyzerApp() {
       if (t.startsWith("|") && t.endsWith("|")) { flushList(); currentTable.push(t.slice(1, -1).split("|")); }
       else {
         flushTable();
-        if (t.startsWith("## ")) { flushList(); const title = t.slice(3); const isV = title.toLowerCase().includes("verdict"); const isQ = title.toLowerCase().includes("call") || title.toLowerCase().includes("question"); const isD = title.toLowerCase().includes("document") || title.toLowerCase().includes("request"); let bc = "var(--accent)"; if (isV) bc = "#8b6914"; else if (isQ) bc = "#2563eb"; else if (isD) bc = "#c0392b"; elements.push(<div key={`h2-${idx}`} className="print-section-header" style={{ ...styles.sectionHeader, borderLeftColor: bc }}><h2 style={styles.h2}>{title}</h2></div>); }
+        if (t.startsWith("## ")) { flushList(); const title = t.slice(3); const isV = title.toLowerCase().includes("verdict"); const isQ = title.toLowerCase().includes("call") || title.toLowerCase().includes("question"); const isD = title.toLowerCase().includes("document") || title.toLowerCase().includes("request"); let bc = "var(--accent)"; if (isV) bc = "var(--accent-gold)"; else if (isQ) bc = "var(--accent)"; else if (isD) bc = "var(--accent-gold)"; elements.push(<div key={`h2-${idx}`} className="print-section-header" style={{ ...styles.sectionHeader, borderLeftColor: bc }}><h2 style={styles.h2}>{title}</h2></div>); }
         else if (t.startsWith("### ")) { flushList(); elements.push(<h3 key={`h3-${idx}`} style={styles.h3}>{t.slice(4)}</h3>); }
         else if (/^\d+\.\s/.test(t)) { if (listType !== "ol") flushList(); listType = "ol"; currentList.push(t.replace(/^\d+\.\s/, "")); }
         else if (t.startsWith("- ") || t.startsWith("• ")) { if (listType !== "ul") flushList(); listType = "ul"; currentList.push(t.slice(2)); }
@@ -218,10 +218,10 @@ function AnalyzerApp() {
   };
 
   const globalStyles = `
-    @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;600&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap');
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    :root { --bg:#faf9f7;--surface:#fff;--text-primary:#1a1a1a;--text-secondary:#5c5c5c;--text-muted:#8a8a8a;--border:#e8e5e0;--accent:#2c5f4a;--accent-light:#e8f0ec;--risk-red:#c0392b;--risk-bg:#fdf2f0;--blue:#2563eb;--blue-light:#eff6ff; }
-    @media(prefers-color-scheme:dark){ :root { --bg:#141413;--surface:#1e1e1c;--text-primary:#e8e5e0;--text-secondary:#a0a0a0;--text-muted:#6a6a6a;--border:#2e2e2c;--accent:#5dab8c;--accent-light:#1a2e25;--risk-red:#e05a4b;--risk-bg:#2a1a18;--blue:#60a5fa;--blue-light:#1a2233; }}`;
+    :root { --bg:#f8f7f4;--surface:#fff;--text-primary:#1a1a1a;--text-secondary:#5c5c5c;--text-muted:#8a8a8a;--border:#e0ddd6;--accent:#1B3A5C;--accent-light:#e8edf3;--accent-gold:#C9A84C;--risk-red:#c0392b;--risk-bg:#fdf2f0;--blue:#1B3A5C;--blue-light:#e8edf3; }
+    @media(prefers-color-scheme:dark){ :root { --bg:#0f1419;--surface:#1a2332;--text-primary:#e8e5e0;--text-secondary:#a0a0a0;--text-muted:#6a6a6a;--border:#2a3544;--accent:#4a7fb5;--accent-light:#1a2e3d;--accent-gold:#C9A84C;--risk-red:#e05a4b;--risk-bg:#2a1a18;--blue:#4a7fb5;--blue-light:#1a2e3d; }}`;
 
   if (!registered) {
     return (
@@ -229,6 +229,7 @@ function AnalyzerApp() {
         <style>{globalStyles}</style>
         <div style={styles.gateWrapper}>
           <div style={styles.gateCard}>
+            <img src="/logo.svg" alt="Lindy Holdings" style={styles.gateLogo} />
             <h1 style={styles.gateTitle}>Pitch Book Analyzer</h1>
             <p style={styles.gateSubtitle}>AI-powered GP due diligence prep for LP investors</p>
             <div style={styles.gateDivider} />
@@ -251,7 +252,7 @@ function AnalyzerApp() {
     <div style={styles.container}>
       <style>{`${globalStyles}
         .upload-zone{transition:all .2s ease} .upload-zone:hover{border-color:var(--accent)!important;background:var(--accent-light)!important}
-        .analyze-btn{transition:all .15s ease} .analyze-btn:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 4px 12px rgba(44,95,74,.25)} .analyze-btn:disabled{opacity:.5;cursor:not-allowed}
+        .analyze-btn{transition:all .15s ease} .analyze-btn:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 4px 12px rgba(27,58,92,.25)} .analyze-btn:disabled{opacity:.5;cursor:not-allowed}
         .progress-bar{animation:pp 1.5s ease-in-out infinite} @keyframes pp{0%,100%{opacity:1}50%{opacity:.7}}
         @keyframes fadeIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}} .fade-in{animation:fadeIn .4s ease forwards}
         ol{padding-left:24px;margin-bottom:12px} ol li{margin-bottom:8px}
@@ -291,7 +292,7 @@ function AnalyzerApp() {
       `}</style>
       <header className="mobile-header" style={styles.header}>
         <div style={styles.headerInner}>
-          <div><h1 className="mobile-title" style={styles.title}>Pitch Book Analyzer</h1><p style={styles.subtitle}>GP due diligence prep for LP investors</p></div>
+          <div style={{display:"flex",alignItems:"center",gap:16}}><img src="/logo.svg" alt="Lindy Holdings" style={styles.headerLogo} /><div><h1 className="mobile-title" style={styles.title}>Pitch Book Analyzer</h1><p style={styles.subtitle}>GP due diligence prep for LP investors</p></div></div>
           {analysis && <div style={{display:"flex",gap:8}}><button className="no-print" onClick={()=>window.print()} style={styles.resetBtn}>Print</button><button className="no-print" onClick={reset} style={styles.resetBtn}>New Analysis</button></div>}
         </div>
         <div className="no-print" style={styles.headerRule} />
@@ -369,22 +370,24 @@ function AnalyzerApp() {
 }
 
 const styles = {
-  container:{fontFamily:"'DM Sans',sans-serif",background:"var(--bg)",color:"var(--text-primary)",minHeight:"100vh",width:"100%"},
+  container:{fontFamily:"'Montserrat',sans-serif",background:"var(--bg)",color:"var(--text-primary)",minHeight:"100vh",width:"100%"},
   gateWrapper:{display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh",padding:24},
   gateCard:{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:16,padding:"48px 40px",maxWidth:440,width:"100%",textAlign:"center"},
-  gateTitle:{fontFamily:"'DM Serif Display',serif",fontSize:32,fontWeight:400,color:"var(--text-primary)",letterSpacing:"-0.02em",marginBottom:6},
-  gateSubtitle:{fontSize:14,color:"var(--text-muted)",marginBottom:0},
-  gateDivider:{height:1,background:"var(--border)",margin:"24px 0"},
+  gateLogo:{height:50,marginBottom:20},
+  gateTitle:{fontFamily:"'Montserrat',sans-serif",fontSize:26,fontWeight:700,color:"var(--accent)",letterSpacing:"0.02em",marginBottom:6},
+  gateSubtitle:{fontSize:13,color:"var(--accent-gold)",fontWeight:500,letterSpacing:"0.03em",marginBottom:0},
+  gateDivider:{height:1,background:"var(--accent-gold)",opacity:0.3,margin:"24px 0"},
   gateDesc:{fontSize:14,color:"var(--text-secondary)",lineHeight:1.6,marginBottom:24,textAlign:"left"},
   gateForm:{display:"flex",flexDirection:"column",gap:12},
-  gateInput:{fontFamily:"'DM Sans',sans-serif",fontSize:14,padding:"12px 14px",border:"1px solid var(--border)",borderRadius:8,background:"var(--bg)",color:"var(--text-primary)",outline:"none"},
-  gateBtn:{fontFamily:"'DM Sans',sans-serif",fontSize:15,fontWeight:600,color:"#fff",background:"var(--accent)",border:"none",borderRadius:8,padding:"14px",cursor:"pointer",marginTop:4},
+  gateInput:{fontFamily:"'Montserrat',sans-serif",fontSize:14,padding:"12px 14px",border:"1px solid var(--border)",borderRadius:8,background:"var(--bg)",color:"var(--text-primary)",outline:"none"},
+  gateBtn:{fontFamily:"'Montserrat',sans-serif",fontSize:15,fontWeight:600,color:"#fff",background:"var(--accent)",border:"none",borderRadius:8,padding:"14px",cursor:"pointer",marginTop:4},
   gateError:{fontSize:13,color:"var(--risk-red)",textAlign:"left"},
   gateDisclaimer:{fontSize:11,color:"var(--text-muted)",marginTop:16,lineHeight:1.4},
   header:{padding:"32px 48px 0"},headerInner:{display:"flex",justifyContent:"space-between",alignItems:"flex-start"},
-  title:{fontFamily:"'DM Serif Display',serif",fontSize:28,fontWeight:400,color:"var(--text-primary)",letterSpacing:"-0.02em",lineHeight:1.2},
+  headerLogo:{height:40},
+  title:{fontFamily:"'Montserrat',sans-serif",fontSize:24,fontWeight:700,color:"var(--accent)",letterSpacing:"0.02em",lineHeight:1.2},
   subtitle:{fontSize:14,color:"var(--text-muted)",marginTop:4,fontWeight:400},headerRule:{height:1,background:"var(--border)",marginTop:20},
-  resetBtn:{fontFamily:"'DM Sans',sans-serif",fontSize:13,fontWeight:500,color:"var(--accent)",background:"var(--accent-light)",border:"1px solid var(--accent)",borderRadius:6,padding:"8px 16px",cursor:"pointer"},
+  resetBtn:{fontFamily:"'Montserrat',sans-serif",fontSize:13,fontWeight:500,color:"var(--accent)",background:"var(--accent-light)",border:"1px solid var(--accent)",borderRadius:6,padding:"8px 16px",cursor:"pointer"},
   main:{padding:"32px 48px 64px"},uploadSection:{display:"flex",flexDirection:"column",gap:24},
   uploadZone:{border:"1.5px dashed var(--border)",borderRadius:12,padding:"48px 32px",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"},
   uploadIcon:{fontSize:28,color:"var(--text-muted)",marginBottom:12,fontWeight:300},uploadText:{fontSize:15,color:"var(--text-secondary)",fontWeight:500},
@@ -392,7 +395,7 @@ const styles = {
   fileIcon:{display:"inline-block",background:"var(--risk-bg)",color:"var(--risk-red)",fontSize:11,fontWeight:600,letterSpacing:"0.05em",padding:"6px 12px",borderRadius:6,marginBottom:12},
   fileName:{fontSize:15,fontWeight:500,color:"var(--text-primary)"},fileSize:{fontSize:13,color:"var(--text-muted)",marginTop:2},
   error:{fontSize:13,color:"var(--risk-red)",background:"var(--risk-bg)",padding:"10px 14px",borderRadius:8},
-  analyzeBtn:{fontFamily:"'DM Sans',sans-serif",fontSize:15,fontWeight:600,color:"#fff",background:"var(--accent)",border:"none",borderRadius:8,padding:"14px 28px",cursor:"pointer",width:"100%"},
+  analyzeBtn:{fontFamily:"'Montserrat',sans-serif",fontSize:15,fontWeight:600,color:"#fff",background:"var(--accent)",border:"none",borderRadius:8,padding:"14px 28px",cursor:"pointer",width:"100%"},
   progressContainer:{display:"flex",flexDirection:"column",gap:8},progressTrack:{height:3,background:"var(--border)",borderRadius:2,overflow:"hidden"},
   progressFill:{height:"100%",background:"var(--accent)",borderRadius:2,transition:"width 0.3s linear"},progressText:{fontSize:13,color:"var(--text-muted)",fontStyle:"italic"},
   infoBox:{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:10,padding:"20px 24px",marginTop:8},
@@ -403,19 +406,19 @@ const styles = {
   metaTag:{fontSize:11,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.08em",color:"var(--blue)",background:"var(--blue-light)",padding:"4px 10px",borderRadius:4},
   metaFile:{fontSize:13,color:"var(--text-muted)"},analysisContent:{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:12,padding:"32px 36px",lineHeight:1.7},
   sectionHeader:{borderLeft:"3px solid var(--accent)",paddingLeft:16,marginTop:28,marginBottom:16},
-  h2:{fontFamily:"'DM Serif Display',serif",fontSize:20,fontWeight:400,color:"var(--text-primary)"},
+  h2:{fontFamily:"'Montserrat',sans-serif",fontSize:20,fontWeight:700,color:"var(--accent)"},
   h3:{fontSize:15,fontWeight:600,color:"var(--text-primary)",marginTop:20,marginBottom:10,paddingBottom:6,borderBottom:"1px solid var(--border)"},
   paragraph:{fontSize:14.5,color:"var(--text-secondary)",lineHeight:1.75,marginBottom:10},
   list:{paddingLeft:20,marginBottom:12},orderedList:{paddingLeft:24,marginBottom:12},
   listItem:{fontSize:14.5,color:"var(--text-secondary)",lineHeight:1.7,marginBottom:6},
   tableWrapper:{margin:"16px 0 20px"},tableScroll:{overflowX:"auto",borderRadius:8,border:"1px solid var(--border)"},
-  table:{width:"100%",borderCollapse:"collapse",fontFamily:"'DM Sans',sans-serif",fontSize:13},
+  table:{width:"100%",borderCollapse:"collapse",fontFamily:"'Montserrat',sans-serif",fontSize:13},
   th:{padding:"10px 14px",fontSize:12,fontWeight:600,color:"var(--text-muted)",textTransform:"uppercase",letterSpacing:"0.04em",background:"var(--bg)",borderBottom:"2px solid var(--border)",whiteSpace:"nowrap"},
   td:{padding:"9px 14px",borderBottom:"1px solid var(--border)",whiteSpace:"nowrap",fontSize:13.5,fontVariantNumeric:"tabular-nums"},
   tableNote:{fontSize:11,color:"var(--text-muted)",marginTop:6,fontStyle:"italic"},
   disclaimer:{fontSize:12,color:"var(--text-muted)",marginTop:24,padding:"12px 16px",background:"var(--surface)",border:"1px solid var(--border)",borderRadius:8,lineHeight:1.5,fontStyle:"italic"},
   docsDropdown:{marginTop:16,background:"var(--surface)",border:"1px solid var(--border)",borderRadius:10,overflow:"hidden"},
-  docsToggle:{fontFamily:"'DM Sans',sans-serif",width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 20px",background:"none",border:"none",cursor:"pointer",color:"var(--text-primary)"},
+  docsToggle:{fontFamily:"'Montserrat',sans-serif",width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 20px",background:"none",border:"none",cursor:"pointer",color:"var(--text-primary)"},
   docsToggleLeft:{display:"flex",flexDirection:"column",alignItems:"flex-start",gap:2},
   docsToggleText:{fontSize:15,fontWeight:600,color:"var(--risk-red)"},
   docsToggleHint:{fontSize:11,color:"var(--text-muted)",fontWeight:400},
@@ -425,15 +428,15 @@ const styles = {
   feedbackTitle:{fontSize:15,fontWeight:600,color:"var(--text-primary)",marginBottom:4},
   feedbackHint:{fontSize:13,color:"var(--text-muted)",marginBottom:16,lineHeight:1.4},
   feedbackInputRow:{display:"flex",gap:8},
-  feedbackInput:{fontFamily:"'DM Sans',sans-serif",flex:1,fontSize:13,padding:"10px 14px",border:"1px solid var(--border)",borderRadius:8,background:"var(--bg)",color:"var(--text-primary)",outline:"none"},
-  feedbackSubmitBtn:{fontFamily:"'DM Sans',sans-serif",fontSize:13,fontWeight:600,color:"#fff",background:"var(--accent)",border:"none",borderRadius:8,padding:"10px 20px",cursor:"pointer",whiteSpace:"nowrap"},
-  feedbackToggle:{fontFamily:"'DM Sans',sans-serif",fontSize:12,color:"var(--text-muted)",background:"none",border:"none",cursor:"pointer",marginTop:12,padding:0,textDecoration:"underline"},
+  feedbackInput:{fontFamily:"'Montserrat',sans-serif",flex:1,fontSize:13,padding:"10px 14px",border:"1px solid var(--border)",borderRadius:8,background:"var(--bg)",color:"var(--text-primary)",outline:"none"},
+  feedbackSubmitBtn:{fontFamily:"'Montserrat',sans-serif",fontSize:13,fontWeight:600,color:"#fff",background:"var(--accent)",border:"none",borderRadius:8,padding:"10px 20px",cursor:"pointer",whiteSpace:"nowrap"},
+  feedbackToggle:{fontFamily:"'Montserrat',sans-serif",fontSize:12,color:"var(--text-muted)",background:"none",border:"none",cursor:"pointer",marginTop:12,padding:0,textDecoration:"underline"},
   feedbackHistoryList:{marginTop:10,display:"flex",flexDirection:"column",gap:6},
   feedbackItem:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,padding:"8px 12px",background:"var(--bg)",borderRadius:6,border:"1px solid var(--border)"},
   feedbackItemText:{display:"flex",flexDirection:"column",gap:2,flex:1,minWidth:0},
   feedbackItemRule:{fontSize:13,color:"var(--text-secondary)",lineHeight:1.4},
   feedbackItemDate:{fontSize:11,color:"var(--text-muted)"},
-  feedbackRemoveBtn:{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:"var(--risk-red)",background:"none",border:"1px solid var(--risk-red)",borderRadius:4,padding:"3px 8px",cursor:"pointer",whiteSpace:"nowrap"},
+  feedbackRemoveBtn:{fontFamily:"'Montserrat',sans-serif",fontSize:11,color:"var(--risk-red)",background:"none",border:"1px solid var(--risk-red)",borderRadius:4,padding:"3px 8px",cursor:"pointer",whiteSpace:"nowrap"},
 };
 
 export default AnalyzerApp;

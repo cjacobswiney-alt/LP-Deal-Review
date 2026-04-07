@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 270 110" width="540" height="220" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style><![CDATA[@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;700&display=swap');]]></style>
+  </defs>
+
+  <!-- Badge -->
+  <rect x="10" y="10" width="90" height="90" rx="8" fill="#1B3A5C"/>
+
+  <!-- L mark (centered in badge) -->
+  <rect x="33" y="29" width="12" height="52" fill="#C9A84C"/>
+  <rect x="33" y="71" width="44" height="10" fill="#C9A84C"/>
+
+  <!-- Separator -->
+  <line x1="114" y1="22" x2="114" y2="88" stroke="#C9A84C" stroke-width="0.75" opacity="0.4"/>
+
+  <!-- Wordmark -->
+  <text x="126" y="60"
+        font-family="Montserrat, 'Century Gothic', 'Futura', sans-serif"
+        font-weight="700"
+        font-size="34"
+        fill="#1B3A5C"
+        letter-spacing="6">LINDY</text>
+
+  <text x="127" y="74"
+        font-family="Montserrat, 'Century Gothic', 'Futura', sans-serif"
+        font-weight="300"
+        font-size="12"
+        fill="#C9A84C"
+        letter-spacing="7">HOLDINGS</text>
+</svg>
