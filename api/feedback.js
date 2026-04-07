@@ -1,8 +1,9 @@
-import { readFeedback, writeFeedback } from '../lib/feedback-store.js';
+import { readAllFeedback, addFeedbackRules, deleteFeedbackRule } from '../lib/feedback-store.js';
 
 export default async function handler(req, res) {
   if (req.method === 'GET') {
-    return res.status(200).json(readFeedback());
+    const list = await readAllFeedback();
+    return res.status(200).json(list);
   }
 
   if (req.method === 'POST') {
@@ -33,10 +34,7 @@ export default async function handler(req, res) {
       try { rules = JSON.parse(cleaned); } catch { rules = [text.trim()]; }
       if (!Array.isArray(rules) || rules.length === 0) rules = [text.trim()];
 
-      const list = readFeedback();
-      const date = new Date().toISOString().slice(0, 10);
-      for (const rule of rules) { list.push({ text: String(rule).trim(), date }); }
-      writeFeedback(list);
+      const list = await addFeedbackRules(rules);
       return res.status(200).json(list);
     } catch (err) {
       return res.status(500).json({ error: err.message });
@@ -45,9 +43,8 @@ export default async function handler(req, res) {
 
   if (req.method === 'DELETE') {
     try {
-      const { index } = req.body;
-      const list = readFeedback();
-      if (index >= 0 && index < list.length) { list.splice(index, 1); writeFeedback(list); }
+      const { id } = req.body;
+      const list = await deleteFeedbackRule(id);
       return res.status(200).json(list);
     } catch (err) {
       return res.status(500).json({ error: err.message });

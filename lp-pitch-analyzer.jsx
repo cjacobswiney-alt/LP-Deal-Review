@@ -50,7 +50,7 @@ function AnalyzerApp() {
   };
   const removeFeedback = async (idx) => {
     try {
-      const res = await fetch("/api/feedback", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ index: idx }) });
+      const res = await fetch("/api/feedback", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: idx }) });
       setFeedbackList(await res.json());
     } catch {}
   };
@@ -85,7 +85,7 @@ function AnalyzerApp() {
       const pdfText = await extractPdfText(file);
       const response = await fetch("/api/analyze", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pdfText }),
+        body: JSON.stringify({ pdfText, fileName: file.name, fileSizeMb: parseFloat((file.size / (1024 * 1024)).toFixed(1)) }),
       });
       if (!response.ok) { const err = await response.json().catch(() => ({})); throw new Error(err?.error?.message || `API error: ${response.status}`); }
       // Handle both SSE (local dev) and JSON (Vercel) responses
@@ -293,13 +293,13 @@ function AnalyzerApp() {
                   </button>
                   {showFeedbackHistory && (
                     <div style={styles.feedbackHistoryList}>
-                      {feedbackList.map((f, i) => (
-                        <div key={i} style={styles.feedbackItem}>
+                      {feedbackList.map((f) => (
+                        <div key={f.id} style={styles.feedbackItem}>
                           <div style={styles.feedbackItemText}>
                             <span style={styles.feedbackItemRule}>{f.text}</span>
-                            <span style={styles.feedbackItemDate}>{f.date}</span>
+                            <span style={styles.feedbackItemDate}>{f.date} — {f.status === "approved" ? "Active" : f.status === "rejected" ? "Rejected" : "Pending review"}</span>
                           </div>
-                          <button onClick={()=>removeFeedback(i)} style={styles.feedbackRemoveBtn}>Remove</button>
+                          <button onClick={()=>removeFeedback(f.id)} style={styles.feedbackRemoveBtn}>Remove</button>
                         </div>
                       ))}
                     </div>

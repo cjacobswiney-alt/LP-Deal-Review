@@ -1,5 +1,5 @@
 import { HAIKU_SYSTEM, SONNET_SYSTEM, USER_MSG, buildFeedbackBlock, parseSections, orderSections } from '../lib/prompts.js';
-import { readFeedback } from '../lib/feedback-store.js';
+import { readApprovedFeedback, logAnalysis } from '../lib/feedback-store.js';
 
 export const config = { maxDuration: 120 };
 
@@ -7,12 +7,13 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') { res.status(405).end(); return; }
 
   try {
-    const { pdfText } = req.body;
+    const { pdfText, fileName, fileSizeMb } = req.body;
     if (!pdfText || !pdfText.trim()) { res.status(400).json({ error: 'pdfText required' }); return; }
 
     const userContent = [{ type: 'text', text: `<pitch_book_text>\n${pdfText}\n</pitch_book_text>\n\n${USER_MSG}` }];
 
-    const feedbackList = readFeedback();
+    // Only approved feedback rules go into the prompt
+    const feedbackList = await readApprovedFeedback();
     const feedback = buildFeedbackBlock(feedbackList);
 
     const headers = {
@@ -51,6 +52,9 @@ export default async function handler(req, res) {
     const sonnetSections = parseSections(sonnetText);
     const all = { ...haikuSections, ...sonnetSections };
     const combined = orderSections(all);
+
+    // Log the analysis to Supabase (non-blocking)
+    logAnalysis({ fileName, analysisText: combined, fileSizeMb }).catch(() => {});
 
     res.status(200).json({ analysis: combined });
 

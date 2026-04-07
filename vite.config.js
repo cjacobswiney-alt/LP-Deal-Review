@@ -1,6 +1,6 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
-import { readFeedback, writeFeedback } from './lib/feedback-store.js'
+import { readAllFeedback, readApprovedFeedback, addFeedbackRules, deleteFeedbackRule, logAnalysis } from './lib/feedback-store.js'
 import { HAIKU_SYSTEM, SONNET_SYSTEM, USER_MSG, buildFeedbackBlock, parseSections, orderSections } from './lib/prompts.js'
 
 export default defineConfig(({ mode }) => {
@@ -15,8 +15,10 @@ export default defineConfig(({ mode }) => {
           // --- /api/feedback ---
           server.middlewares.use('/api/feedback', (req, res, next) => {
             if (req.method === 'GET') {
-              res.setHeader('Content-Type', 'application/json');
-              res.end(JSON.stringify(readFeedback()));
+              readAllFeedback().then(list => {
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify(list));
+              });
               return;
             }
             if (req.method === 'POST') {
@@ -41,10 +43,7 @@ export default defineConfig(({ mode }) => {
                   let rules;
                   try { rules = JSON.parse(cleaned); } catch { rules = [text.trim()]; }
                   if (!Array.isArray(rules) || rules.length === 0) rules = [text.trim()];
-                  const list = readFeedback();
-                  const date = new Date().toISOString().slice(0, 10);
-                  for (const rule of rules) { list.push({ text: String(rule).trim(), date }); }
-                  writeFeedback(list);
+                  const list = await addFeedbackRules(rules);
                   res.setHeader('Content-Type', 'application/json');
                   res.end(JSON.stringify(list));
                 } catch (err) { res.statusCode = 500; res.end(JSON.stringify({ error: err.message })); }
@@ -54,11 +53,10 @@ export default defineConfig(({ mode }) => {
             if (req.method === 'DELETE') {
               let body = '';
               req.on('data', chunk => body += chunk);
-              req.on('end', () => {
+              req.on('end', async () => {
                 try {
-                  const { index } = JSON.parse(body);
-                  const list = readFeedback();
-                  if (index >= 0 && index < list.length) { list.splice(index, 1); writeFeedback(list); }
+                  const { id } = JSON.parse(body);
+                  const list = await deleteFeedbackRule(id);
                   res.setHeader('Content-Type', 'application/json');
                   res.end(JSON.stringify(list));
                 } catch (err) { res.statusCode = 500; res.end(JSON.stringify({ error: err.message })); }
@@ -75,12 +73,12 @@ export default defineConfig(({ mode }) => {
             req.on('data', chunk => body += chunk);
             req.on('end', async () => {
               try {
-                const { pdfText } = JSON.parse(body);
+                const { pdfText, fileName, fileSizeMb } = JSON.parse(body);
                 if (!pdfText || !pdfText.trim()) { res.statusCode = 400; res.end(JSON.stringify({ error: 'pdfText required' })); return; }
 
                 const userContent = [{ type: 'text', text: `<pitch_book_text>\n${pdfText}\n</pitch_book_text>\n\n${USER_MSG}` }];
 
-                const feedbackList = readFeedback();
+                const feedbackList = await readApprovedFeedback();
                 const feedback = buildFeedbackBlock(feedbackList);
 
                 const apiHeaders = {
@@ -147,6 +145,9 @@ export default defineConfig(({ mode }) => {
                 console.log('[analyze] Sonnet sections:', Object.keys(sonnetSections));
                 const all = { ...haikuSections, ...sonnetSections };
                 const combined = orderSections(all);
+
+                // Log analysis to Supabase (non-blocking)
+                logAnalysis({ fileName, analysisText: combined, fileSizeMb }).catch(() => {});
 
                 res.setHeader('Content-Type', 'text/event-stream');
                 res.setHeader('Cache-Control', 'no-cache');
