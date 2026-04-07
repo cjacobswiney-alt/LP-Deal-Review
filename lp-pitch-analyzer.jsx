@@ -236,7 +236,7 @@ function AnalyzerApp() {
             <form onSubmit={handleRegister} style={styles.gateForm}>
               <input value={regName} onChange={e=>setRegName(e.target.value)} placeholder="Name" style={styles.gateInput} />
               <input value={regEmail} onChange={e=>setRegEmail(e.target.value)} placeholder="Email *" type="email" required style={styles.gateInput} />
-              <input value={regCompany} onChange={e=>setRegCompany(e.target.value)} placeholder="Company" style={styles.gateInput} />
+              <input value={regCompany} onChange={e=>setRegCompany(e.target.value)} placeholder="Company (optional)" style={styles.gateInput} />
               {regError && <p style={styles.gateError}>{regError}</p>}
               <button type="submit" disabled={regLoading} style={{...styles.gateBtn, opacity: regLoading ? 0.5 : 1}}>{regLoading ? "..." : "Get Started"}</button>
             </form>
