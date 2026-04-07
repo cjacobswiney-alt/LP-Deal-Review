@@ -321,7 +321,7 @@ function AnalyzerApp() {
             <div className="print-meta" style={styles.analysisMeta}><span style={styles.metaTag}>Due Diligence Prep</span><span style={styles.metaFile}>{filePreview?.name}</span></div>
             <div className="mobile-analysis-content" style={styles.analysisContent}>{renderMarkdown(splitDocs(analysis).main)}</div>
             {splitDocs(analysis).docs && (
-              <div style={styles.docsDropdown}>
+              <div className="no-print" style={styles.docsDropdown}>
                 <button onClick={()=>setDocsOpen(!docsOpen)} style={styles.docsToggle}>
                   <div style={styles.docsToggleLeft}>
                     <span style={styles.docsToggleText}>Documents to Request Before Committing</span>
