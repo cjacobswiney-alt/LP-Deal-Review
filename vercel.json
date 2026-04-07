@@ -1,0 +1,14 @@
+{
+  "buildCommand": "npx vite build",
+  "outputDirectory": "dist",
+  "framework": "vite",
+  "functions": {
+    "api/analyze.js": {
+      "maxDuration": 120,
+      "memory": 1024
+    },
+    "api/feedback.js": {
+      "maxDuration": 30
+    }
+  }
+}

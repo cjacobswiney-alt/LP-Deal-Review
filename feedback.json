@@ -1,0 +1,278 @@
+[
+  {
+    "text": "Flag when total deal-level fees exceed 10% of effective gross revenues",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Highlight DSCR below 1.0x as critical debt coverage concern",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Prioritize DSCR over LTV when assessing debt risk",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Require rent comparables to substantiate below-market rent claims",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Flag occupancy below 90% as indicator of weak demand rather than opportunity",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Include all fees mentioned in verdict sections within the dedicated fees section",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Ensure fee calculations in verdict match itemized fees in fee section",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Cross-reference all fee mentions between verdict and fee sections for consistency",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Add any fees cited in analysis conclusions to the formal fee breakdown",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Flag when property/asset management fees exceed 10% combined total",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Question fee structures above market rates with 'why' instead of 'can you reduce'",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Identify when combined management fees are 3+ percentage points above market standard",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Frame fee discussions as justification requests rather than reduction requests",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Alert when total management fees exceed 10% threshold for investor review",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "When recommending caution, identify and explain the single most critical issue with the deal",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Flag when GP fees are front-loaded rather than performance-based relative to LP returns",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Flag when GP makes market rent claims without supporting data or comps",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Flag when going-in DSCR is below 1.0x",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Prioritize GP misalignment issues when multiple red flags exist",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Highlight unsupported market assumptions as major deal risks",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Flag deals with negative initial cash flow coverage ratios",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Flag when guaranteed fees exceed GP equity investment by more than 5x",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Highlight when multiple acquisition-related fees are charged for the same transaction",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Request specific dollar amounts for property and asset management fees for years 1-5",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Flag when combined property and asset management fees exceed 6% market standard",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Verify waterfall mechanics and preferred return calculation methodology in operating agreement",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Review clawback provisions and LP protection mechanisms",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Assess LP voting rights on fee increases and major decisions",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Evaluate GP removal provisions and LP governance rights",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Flag when DSCR falls below 1.20x for heavy scrutiny",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "State market averages instead of referencing instruction thresholds in flag explanations",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Replace threshold language with market benchmark context when explaining flags",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Use industry standard comparisons rather than internal rule references in outputs",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Remove requests for phase 1 environmental assessments",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Do not require audited financials as they are uncommon in LP deals",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Flag when exit cap rate is lower than entry cap rate as this indicates negative cap rate compression",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Do not flag cap rate expansion where exit cap rate exceeds entry cap rate",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Highlight deals with cap rate compression (exit cap < entry cap) as potential concerns",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Accept cap rate expansion scenarios as favorable market assumptions",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Do not net acquisition fees against GP co-invest when the GP is rolling the acquisition fee into the deal",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Flag when acquisition fees are being rolled into deal financing rather than paid upfront by GP",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Separate acquisition fee treatment from co-invest calculations when fees are deal-financed",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Calculate equity percentage as proportion of total equity stack, not total project cost",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Use total equity as denominator when showing equity percentage breakdowns",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Exclude debt from equity percentage calculations",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Flag deals with projected cap rate compression",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Highlight deals with projected cap rate expansion as positive",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Alert when exit cap rates are lower than entry cap rates",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Flag aggressive cap rate assumptions that rely on market compression",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Base sponsor equity share calculations on total equity amount, not total deal capitalization",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Include all non-renovation capex when calculating going-in cap rate",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Backsolve cap rate calculations to account for immediate capital expenditures",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Adjust NOI for required non-renovation capex before determining going-in cap rate",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Do not include property management fees in guaranteed fees calculations",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Do not flag DSCR above 1.30x as thin coverage",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Flag when deferred equity fees are structured as rolled acquisition fees",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Identify when sponsor acquisition fees are converted to deemed equity at closing",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Highlight deferred equity arrangements that represent rolled sponsor compensation",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Mark deals where acquisition fees become sponsor equity instead of cash payment",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Do not flag DSCR above 1.30x as thin coverage",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Flag when acquisition fees exceed 3% of purchase price",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Alert when acquisition fees are below 2% of purchase price as potentially below market",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Flag when GP co-invest is less than 5% of total equity investment",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Allow acquisition fees larger than GP co-invest if fees are reinvested in the deal rather than distributed to GP",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Flag when acquisition fees exceed GP co-invest and are being distributed directly to GP",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Verify acquisition fee treatment - whether reinvested or paid out to sponsor",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Verify that sponsor co-invest is calculated as percentage of total equity, not percentage of total deal capitalization",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Flag when sponsor co-invest percentage appears to be based on total deal value instead of equity portion",
+    "date": "2026-04-07"
+  },
+  {
+    "text": "Ensure co-invest calculations exclude debt portion from denominator",
+    "date": "2026-04-07"
+  }
+]

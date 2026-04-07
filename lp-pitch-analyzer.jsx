@@ -1,69 +1,5 @@
 import { useState, useRef, useCallback } from "react";
 
-const SYSTEM_PROMPT = `You are a seasoned institutional LP analyst preparing an investor for a due diligence call with a GP. You have reviewed their pitch book. Your job is to arm the LP with the specific questions, data requests, and independent verification steps they need to evaluate this opportunity. Do not summarize the pitch book back to the LP. Tell them what to ask, what to request, and what to verify.
-
-Write your analysis in this exact order using markdown headers (##). Be specific throughout. Cite page numbers, exact figures, and direct observations. When something is missing, tell the LP exactly what document or data point to request.
-
-## Deal Snapshot
-One paragraph. Property name, sponsor, location, strategy, unit count or SF, purchase price (total and per unit/SF), total capitalization, hold period, target LP IRR and equity multiple. State the asset class and market tier (primary/secondary/tertiary). If any of these are not disclosed, say "Not disclosed" for each.
-
-## Verdict
-One of: PROCEED | WORTH EXPLORING | PROCEED WITH CAUTION | PASS
-
-Follow with 2-3 sentences on why. Be direct.
-
-## Before Your Next GP Call: Questions by Category
-
-Organize your questions into the categories below. For each category, provide:
-- A brief assessment (2-3 sentences) of what the pitch book does and does not tell you
-- Then numbered, specific questions the LP should ask the GP
-- Where relevant, include the exact data request (e.g., "Request a rent comp survey within a 3-mile radius of the subject property" or "Request 3 years of audited financials for [tenant name]")
-
-### Sponsor & Track Record
-Evaluate using these criteria: track records must include every investment, not cherry-picked winners. Returns from 2019-2022 prove almost nothing. Investments under a prior firm must be disclosed separately. Was the GP the controlling principal or a capital raiser/minority partner?
-
-Questions should cover: verified deal-level exit data, role in each claimed deal, post-2022 performance, any capital calls or distressed assets.
-
-### GP Alignment & Fees
-Calculate and disclose: net sponsor exposure (co-invest minus all fees at close), fee-to-capital ratio, and how each compares to benchmarks (10% co-invest satisfactory, 1-2% acquisition fee market, 5-6% PM market, 20-30% promote market). For development deals: if developer fee + affiliated GC fee exceeds co-invest, flag it as "GP has no economic downside."
-
-Questions should cover: exact co-invest amount, full fee schedule, waterfall mechanics from the PPM, whether pref is truly annual or has delayed accrual/declining balance, and any fee clawback provisions.
-
-### Underwriting & Assumptions
-For each key assumption, tell the LP what to verify:
-- Acquisition cap rate: was it T12 actuals or pro forma? Recalculate if possible. Flag manipulation.
-- Exit cap rate: back-solve the implied exit price from projected proceeds. Standard practice assumes 10-20bps annual expansion for aging assets. Exit tighter than new construction for a vintage asset is indefensible.
-- Rents: tell the LP to request a specific comp survey (e.g., "Request a CoStar rent comp pull for [asset class] within a 3-mile radius of [address], filtered by [vintage/class]").
-- Vacancy: tell the LP to pull submarket vacancy data by star rating.
-- Development spread: for development deals, calculate untrended YOC minus spot cap rate. Below 150bps is too thin.
-
-### Debt & Capital Structure
-Evaluate leverage, rate type, maturity alignment, and negative leverage. If the loan is not committed, tell the LP to request the executed term sheet before closing. Calculate the impact of a 150-200bps rate increase if floating.
-
-### Market Verification
-Give the LP exact independent verification steps using the actual property address, city, asset class, and tenant name:
-- "Pull CoStar submarket data for [city/submarket], filtered by [star rating/vintage], and compare vacancy and rent growth projections to the sponsor's claims."
-- "Check the property website and 2-3 comp property websites for live asking rents and concessions."
-- "Pull CoStar sales comps for [asset class] within [radius] of [address], closed in the last 24 months."
-- For single-tenant: "Request 2-3 years of audited financials for [tenant name]."
-
-### Structure & Legal
-Evaluate: IRR vs AAR waterfall, structural GP ownership without capital, capital call provisions, fund redeployment rights, preferred equity senior to LP. Questions should cover LP agreement review, voting rights, and GP removal.
-
-## Sensitivity Analysis
-ONE 5x5 sensitivity table with the two most impactful assumptions for this strategy. GP base case in the center marked with *. After the table, 2-3 sentences on where the deal breaks. If data is insufficient, state what is missing and use market assumptions labeled as analyst estimates.
-
-## Documents to Request Before Committing
-A numbered checklist of every specific document and data pull. Be concrete: "Trailing 12-month operating statement from the seller," "CoStar submarket report for [city], [asset class], [star rating]," "Executed loan commitment letter," "LP agreement with full waterfall," etc.
-
-CRITICAL RULES:
-- Never parrot GP marketing language.
-- Calculate net sponsor exposure on every deal.
-- Back-solve exit cap from projected sale proceeds.
-- Track records from 2019-2022 prove almost nothing.
-- Sophisticated marketing does not correlate with investment quality.
-- Be direct. Say "this is aggressive" not "this may warrant further consideration."`;
-
 function AnalyzerApp() {
   const [file, setFile] = useState(null);
   const [filePreview, setFilePreview] = useState(null);
@@ -72,7 +8,37 @@ function AnalyzerApp() {
   const [error, setError] = useState(null);
   const [dragOver, setDragOver] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [feedbackInput, setFeedbackInput] = useState("");
+  const [feedbackList, setFeedbackList] = useState([]);
+  const [docsOpen, setDocsOpen] = useState(false);
+  const [showFeedbackHistory, setShowFeedbackHistory] = useState(false);
   const fileInputRef = useRef(null);
+
+  const loadFeedback = useCallback(async () => {
+    try { const res = await fetch("/api/feedback"); setFeedbackList(await res.json()); } catch {}
+  }, []);
+
+  // Load feedback from server on mount
+  useState(() => { loadFeedback(); });
+
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
+
+  const addFeedback = async () => {
+    if (!feedbackInput.trim()) return;
+    setFeedbackLoading(true);
+    try {
+      // Send raw feedback to server — it will use Claude to parse into discrete rules
+      const res = await fetch("/api/feedback", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: feedbackInput.trim() }) });
+      setFeedbackList(await res.json());
+      setFeedbackInput("");
+    } catch {} finally { setFeedbackLoading(false); }
+  };
+  const removeFeedback = async (idx) => {
+    try {
+      const res = await fetch("/api/feedback", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ index: idx }) });
+      setFeedbackList(await res.json());
+    } catch {}
+  };
 
   const handleFile = useCallback((f) => {
     if (!f) return;
@@ -88,28 +54,66 @@ function AnalyzerApp() {
 
   const analyzeDocument = async () => {
     if (!file) return;
-    setLoading(true); setError(null); setAnalysis(""); setProgress(10);
+    setLoading(true); setError(null); setAnalysis(""); setProgress(0);
+
+    // Smooth progress animation — crawls from 0 to ~90 over ~60 seconds, slowing as it goes
+    let currentProgress = 0;
+    const progressInterval = setInterval(() => {
+      const remaining = 92 - currentProgress;
+      const increment = Math.max(0.15, remaining * 0.02);
+      currentProgress = Math.min(92, currentProgress + increment);
+      setProgress(currentProgress);
+    }, 300);
+
     try {
       const base64 = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result.split(",")[1]); r.onerror = () => rej(new Error("Failed to read file")); r.readAsDataURL(file); });
-      setProgress(30);
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
+      const response = await fetch("/api/analyze", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 8192, system: SYSTEM_PROMPT,
-          messages: [{ role: "user", content: [
-            { type: "document", source: { type: "base64", media_type: "application/pdf", data: base64 } },
-            { type: "text", text: "Analyze this GP pitch book and prepare me for a due diligence call. Tell me what to ask, what to request, and what to verify independently. Follow the framework exactly." }
-          ]}]
-        }),
+        body: JSON.stringify({ pdfBase64: base64 }),
       });
-      setProgress(70);
       if (!response.ok) { const err = await response.json().catch(() => ({})); throw new Error(err?.error?.message || `API error: ${response.status}`); }
-      const data = await response.json();
+      // Read SSE stream
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let fullText = "";
+      const processLines = (linesToProcess) => {
+        for (const line of linesToProcess) {
+          if (line === "data: [DONE]") continue;
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const { text } = JSON.parse(line.slice(6));
+            if (text) { fullText += text; setAnalysis(fullText); }
+          } catch {}
+        }
+      };
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          buffer += decoder.decode();
+          processLines(buffer.split("\n"));
+          break;
+        }
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+        processLines(lines);
+      }
+      clearInterval(progressInterval);
       setProgress(100);
-      setAnalysis(data.content?.filter(b => b.type === "text").map(b => b.text).join("\n") || "No analysis returned.");
-    } catch (err) { setError(err.message || "Analysis failed."); } finally { setLoading(false); }
+      if (!fullText) setAnalysis("No analysis returned.");
+    } catch (err) { clearInterval(progressInterval); setError(err.message || "Analysis failed."); } finally { setLoading(false); }
   };
 
-  const reset = () => { setFile(null); setFilePreview(null); setAnalysis(""); setError(null); setProgress(0); };
+  const reset = () => { setFile(null); setFilePreview(null); setAnalysis(""); setError(null); setProgress(0); setDocsOpen(false); };
+
+  const splitDocs = (md) => {
+    const pattern = /\n## Documents to Request[^\n]*/i;
+    const match = md.match(pattern);
+    if (!match) return { main: md, docs: null };
+    const idx = match.index;
+    return { main: md.slice(0, idx).trimEnd(), docs: md.slice(idx).trim() };
+  };
 
   const renderMarkdown = (md) => {
     if (!md) return null;
@@ -134,7 +138,7 @@ function AnalyzerApp() {
       if (dataRows.length === 0) { currentTable = []; return; }
       const header = dataRows[0], body = dataRows.slice(1);
       elements.push(
-        <div key={`tbl-${elements.length}`} style={styles.tableWrapper}><div style={styles.tableScroll}><table style={styles.table}>
+        <div key={`tbl-${elements.length}`} className="print-table-wrapper" style={styles.tableWrapper}><div style={styles.tableScroll}><table style={styles.table}>
           <thead><tr>{header.map((c, ci) => <th key={ci} style={{ ...styles.th, textAlign: ci === 0 ? "left" : "center" }}>{renderInline(c.trim())}</th>)}</tr></thead>
           <tbody>{body.map((row, ri) => <tr key={ri}>{row.map((cell, ci) => {
             const val = cell.trim(), isBase = val.includes("*"), numMatch = val.replace("*","").match(/([\d.]+)%/), numVal = numMatch ? parseFloat(numMatch[1]) : null;
@@ -142,7 +146,7 @@ function AnalyzerApp() {
             if (isBase) bg = "var(--accent-light)"; else if (numVal !== null && ci > 0) { if (numVal < 8) bg = "var(--risk-bg)"; else if (numVal >= 15) bg = "rgba(44,95,74,0.08)"; }
             return <td key={ci} style={{ ...styles.td, textAlign: ci === 0 ? "left" : "center", fontWeight: ci === 0 || isBase ? 600 : 400, background: bg, color: isBase ? "var(--accent)" : numVal !== null && numVal < 8 && ci > 0 ? "var(--risk-red)" : "var(--text-secondary)" }}>{renderInline(val)}</td>;
           })}</tr>)}</tbody>
-        </table></div><p style={styles.tableNote}>* = GP base case. Cells below 8% pref highlighted.</p></div>);
+        </table></div><p className="print-table-note" style={styles.tableNote}>* = GP base case. Cells below 8% pref highlighted.</p></div>);
       currentTable = [];
     };
     const renderInline = (text) => text.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
@@ -150,14 +154,16 @@ function AnalyzerApp() {
 
     lines.forEach((line, idx) => {
       const t = line.trim();
+      // Peek ahead: if blank line is followed by a numbered item, don't flush the ordered list
+      const nextNonEmpty = () => { for (let i = idx + 1; i < lines.length; i++) { const nt = lines[i].trim(); if (nt !== "") return nt; } return ""; };
       if (t.startsWith("|") && t.endsWith("|")) { flushList(); currentTable.push(t.slice(1, -1).split("|")); }
       else {
         flushTable();
-        if (t.startsWith("## ")) { flushList(); const title = t.slice(3); const isV = title.toLowerCase().includes("verdict"); const isQ = title.toLowerCase().includes("call") || title.toLowerCase().includes("question"); const isD = title.toLowerCase().includes("document") || title.toLowerCase().includes("request"); const isS = title.toLowerCase().includes("sensitivity"); let bc = "var(--accent)"; if (isV) bc = "#8b6914"; else if (isQ) bc = "#2563eb"; else if (isD) bc = "#c0392b"; else if (isS) bc = "#d4880f"; elements.push(<div key={`h2-${idx}`} style={{ ...styles.sectionHeader, borderLeftColor: bc }}><h2 style={styles.h2}>{title}</h2></div>); }
+        if (t.startsWith("## ")) { flushList(); const title = t.slice(3); const isV = title.toLowerCase().includes("verdict"); const isQ = title.toLowerCase().includes("call") || title.toLowerCase().includes("question"); const isD = title.toLowerCase().includes("document") || title.toLowerCase().includes("request"); let bc = "var(--accent)"; if (isV) bc = "#8b6914"; else if (isQ) bc = "#2563eb"; else if (isD) bc = "#c0392b"; elements.push(<div key={`h2-${idx}`} className="print-section-header" style={{ ...styles.sectionHeader, borderLeftColor: bc }}><h2 style={styles.h2}>{title}</h2></div>); }
         else if (t.startsWith("### ")) { flushList(); elements.push(<h3 key={`h3-${idx}`} style={styles.h3}>{t.slice(4)}</h3>); }
         else if (/^\d+\.\s/.test(t)) { if (listType !== "ol") flushList(); listType = "ol"; currentList.push(t.replace(/^\d+\.\s/, "")); }
         else if (t.startsWith("- ") || t.startsWith("• ")) { if (listType !== "ul") flushList(); listType = "ul"; currentList.push(t.slice(2)); }
-        else if (t === "") { flushList(); elements.push(<div key={`sp-${idx}`} style={{ height: 8 }} />); }
+        else if (t === "") { if (listType === "ol" && /^\d+\.\s/.test(nextNonEmpty())) { /* skip — keep collecting ol items */ } else { flushList(); elements.push(<div key={`sp-${idx}`} className="print-spacer" style={{ height: 8 }} />); } }
         else { flushList(); elements.push(<p key={`p-${idx}`} style={styles.paragraph}>{renderInline(t)}</p>); }
       }
     });
@@ -177,18 +183,51 @@ function AnalyzerApp() {
         .progress-bar{animation:pp 1.5s ease-in-out infinite} @keyframes pp{0%,100%{opacity:1}50%{opacity:.7}}
         @keyframes fadeIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}} .fade-in{animation:fadeIn .4s ease forwards}
         ol{padding-left:24px;margin-bottom:12px} ol li{margin-bottom:8px}
+        @media print{
+          body{background:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+          .no-print{display:none!important}
+          .mobile-header{padding:0!important}
+          .mobile-main{padding:8px 0 0!important}
+          .mobile-analysis-content{border:none!important;padding:0!important;box-shadow:none!important}
+          .print-analysis{background:#fff!important;border:none!important}
+          .fade-in{animation:none!important}
+          .print-meta{margin-bottom:12px!important}
+          .print-section-header{margin-top:16px!important;margin-bottom:8px!important;padding-left:12px!important}
+          .print-section-header h2{font-size:16px!important}
+          h3{font-size:13px!important;margin-top:12px!important;margin-bottom:6px!important;padding-bottom:3px!important}
+          p{font-size:11.5px!important;line-height:1.5!important;margin-bottom:6px!important}
+          li{font-size:11.5px!important;line-height:1.5!important;margin-bottom:4px!important;page-break-inside:avoid}
+          ul,ol{margin-bottom:6px!important;padding-left:18px!important}
+          table{page-break-inside:avoid;font-size:11px!important}
+          th{padding:5px 10px!important;font-size:10px!important}
+          td{padding:4px 10px!important;font-size:11px!important}
+          .print-table-wrapper{margin:8px 0 12px!important}
+          .print-table-note{margin-top:3px!important;font-size:9px!important}
+          .print-disclaimer{margin-top:12px!important;padding:8px 12px!important;font-size:10px!important}
+          h2,h3{page-break-after:avoid}
+          .print-spacer{height:4px!important}
+          @page{margin:1.2cm}
+        }
+        @media(max-width:640px){
+          .mobile-header{padding:20px 16px 0!important}
+          .mobile-main{padding:20px 16px 48px!important}
+          .mobile-info-grid{grid-template-columns:1fr!important}
+          .mobile-upload-zone{padding:32px 16px!important}
+          .mobile-analysis-content{padding:20px 16px!important}
+          .mobile-title{font-size:22px!important}
+        }
       `}</style>
-      <header style={styles.header}>
+      <header className="mobile-header" style={styles.header}>
         <div style={styles.headerInner}>
-          <div><h1 style={styles.title}>Pitch Book Analyzer</h1><p style={styles.subtitle}>GP due diligence prep for LP investors</p></div>
-          {analysis && <button onClick={reset} style={styles.resetBtn}>New Analysis</button>}
+          <div><h1 className="mobile-title" style={styles.title}>Pitch Book Analyzer</h1><p style={styles.subtitle}>GP due diligence prep for LP investors</p></div>
+          {analysis && <div style={{display:"flex",gap:8}}><button className="no-print" onClick={()=>window.print()} style={styles.resetBtn}>Print</button><button className="no-print" onClick={reset} style={styles.resetBtn}>New Analysis</button></div>}
         </div>
-        <div style={styles.headerRule} />
+        <div className="no-print" style={styles.headerRule} />
       </header>
-      <main style={styles.main}>
+      <main className="mobile-main" style={styles.main}>
         {!analysis ? (
           <div className="fade-in" style={styles.uploadSection}>
-            <div className="upload-zone" onDrop={onDrop} onDragOver={e=>{e.preventDefault();setDragOver(true)}} onDragLeave={()=>setDragOver(false)} onClick={()=>fileInputRef.current?.click()}
+            <div className="upload-zone mobile-upload-zone" onDrop={onDrop} onDragOver={e=>{e.preventDefault();setDragOver(true)}} onDragLeave={()=>setDragOver(false)} onClick={()=>fileInputRef.current?.click()}
               style={{ ...styles.uploadZone, borderColor: dragOver?"var(--accent)":filePreview?"var(--accent)":"var(--border)", background: dragOver?"var(--accent-light)":filePreview?"var(--accent-light)":"transparent" }}>
               <input ref={fileInputRef} type="file" accept="application/pdf" onChange={e=>handleFile(e.target.files?.[0])} style={{display:"none"}} />
               {filePreview ? (<div style={{textAlign:"center"}}><div style={styles.fileIcon}>PDF</div><p style={styles.fileName}>{filePreview.name}</p><p style={styles.fileSize}>{filePreview.size} MB</p></div>)
@@ -196,20 +235,60 @@ function AnalyzerApp() {
             </div>
             {error && <p style={styles.error}>{error}</p>}
             <button className="analyze-btn" onClick={analyzeDocument} disabled={!file||loading} style={styles.analyzeBtn}>{loading?"Analyzing...":"Prepare My Due Diligence"}</button>
-            {loading && (<div style={styles.progressContainer}><div style={styles.progressTrack}><div className="progress-bar" style={{...styles.progressFill,width:`${progress}%`}}/></div><p style={styles.progressText}>{progress<30?"Reading document...":progress<70?"Analyzing structure, terms, and assumptions...":"Building your diligence questions..."}</p></div>)}
+            {loading && (<div style={styles.progressContainer}><div style={styles.progressTrack}><div className="progress-bar" style={{...styles.progressFill,width:`${progress}%`}}/></div><p style={styles.progressText}>{progress<15?"Reading document...":progress<40?"Extracting text and financials...":progress<65?"Analyzing structure, terms, and assumptions...":progress<85?"Building your diligence questions...":"Finalizing report..."}</p></div>)}
             <div style={styles.infoBox}>
               <p style={styles.infoTitle}>What you'll get</p>
-              <div style={styles.infoGrid}>
-                {[{label:"GP Questions by Category",desc:"Specific questions to ask on your next call, organized by topic"},{label:"Independent Verification Steps",desc:"Exact CoStar pulls, comp surveys, and data requests to run yourself"},{label:"Net Sponsor Exposure",desc:"Co-invest minus fees. Is the GP actually at risk alongside you?"},{label:"Sensitivity Analysis",desc:"Where the deal breaks and how optimistic the base case really is"}].map((item,i)=>(
+              <div className="mobile-info-grid" style={styles.infoGrid}>
+                {[{label:"GP Questions by Category",desc:"Specific questions to ask on your next call, organized by topic"},{label:"Independent Verification Steps",desc:"Exact CoStar pulls, comp surveys, and data requests to run yourself"},{label:"Net Sponsor Exposure",desc:"Co-invest minus fees. Is the GP actually at risk alongside you?"},{label:"Document Checklist",desc:"Every document and data pull to request before committing"}].map((item,i)=>(
                   <div key={i} style={styles.infoItem}><p style={styles.infoLabel}>{item.label}</p><p style={styles.infoDesc}>{item.desc}</p></div>))}
               </div>
             </div>
           </div>
         ) : (
           <div className="fade-in" style={styles.analysisContainer}>
-            <div style={styles.analysisMeta}><span style={styles.metaTag}>Due Diligence Prep</span><span style={styles.metaFile}>{filePreview?.name}</span></div>
-            <div style={styles.analysisContent}>{renderMarkdown(analysis)}</div>
-            <div style={styles.disclaimer}>AI-generated analysis to support your due diligence. Verify all figures against source documents. This is a starting point, not a replacement for independent evaluation.</div>
+            <div className="print-meta" style={styles.analysisMeta}><span style={styles.metaTag}>Due Diligence Prep</span><span style={styles.metaFile}>{filePreview?.name}</span></div>
+            <div className="mobile-analysis-content" style={styles.analysisContent}>{renderMarkdown(splitDocs(analysis).main)}</div>
+            {splitDocs(analysis).docs && (
+              <div style={styles.docsDropdown}>
+                <button onClick={()=>setDocsOpen(!docsOpen)} style={styles.docsToggle}>
+                  <div style={styles.docsToggleLeft}>
+                    <span style={styles.docsToggleText}>Documents to Request Before Committing</span>
+                    <span style={styles.docsToggleHint}>{docsOpen ? "Click to collapse" : "Click to expand checklist"}</span>
+                  </div>
+                  <span style={{...styles.docsArrow, transform: docsOpen ? "rotate(180deg)" : "rotate(0deg)"}}>&#9662;</span>
+                </button>
+                {docsOpen && <div style={styles.docsContent}>{renderMarkdown(splitDocs(analysis).docs)}</div>}
+              </div>
+            )}
+            <div className="print-disclaimer" style={styles.disclaimer}>AI-generated analysis to support your due diligence. Verify all figures against source documents. This is a starting point, not a replacement for independent evaluation.</div>
+            <div className="no-print" style={styles.feedbackSection}>
+              <p style={styles.feedbackTitle}>Improve Future Analyses</p>
+              <p style={styles.feedbackHint}>Tell the model what to do differently. Each piece of feedback is applied to all future analyses.</p>
+              <div style={styles.feedbackInputRow}>
+                <input value={feedbackInput} onChange={e=>setFeedbackInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!feedbackLoading)addFeedback()}} placeholder='e.g. "Always flag deals with less than 8% pref" or "Be more aggressive on exit cap assumptions"' style={styles.feedbackInput} disabled={feedbackLoading} />
+                <button onClick={addFeedback} disabled={!feedbackInput.trim()||feedbackLoading} style={{...styles.feedbackSubmitBtn,opacity:feedbackInput.trim()&&!feedbackLoading?1:0.4}}>{feedbackLoading?"Processing...":"Add"}</button>
+              </div>
+              {feedbackList.length > 0 && (
+                <div>
+                  <button onClick={()=>setShowFeedbackHistory(!showFeedbackHistory)} style={styles.feedbackToggle}>
+                    {showFeedbackHistory ? "Hide" : "Show"} feedback rules ({feedbackList.length})
+                  </button>
+                  {showFeedbackHistory && (
+                    <div style={styles.feedbackHistoryList}>
+                      {feedbackList.map((f, i) => (
+                        <div key={i} style={styles.feedbackItem}>
+                          <div style={styles.feedbackItemText}>
+                            <span style={styles.feedbackItemRule}>{f.text}</span>
+                            <span style={styles.feedbackItemDate}>{f.date}</span>
+                          </div>
+                          <button onClick={()=>removeFeedback(i)} style={styles.feedbackRemoveBtn}>Remove</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </main>
@@ -219,11 +298,11 @@ function AnalyzerApp() {
 
 const styles = {
   container:{fontFamily:"'DM Sans',sans-serif",background:"var(--bg)",color:"var(--text-primary)",minHeight:"100vh",width:"100%"},
-  header:{padding:"32px 32px 0",maxWidth:780,margin:"0 auto"},headerInner:{display:"flex",justifyContent:"space-between",alignItems:"flex-start"},
+  header:{padding:"32px 48px 0"},headerInner:{display:"flex",justifyContent:"space-between",alignItems:"flex-start"},
   title:{fontFamily:"'DM Serif Display',serif",fontSize:28,fontWeight:400,color:"var(--text-primary)",letterSpacing:"-0.02em",lineHeight:1.2},
   subtitle:{fontSize:14,color:"var(--text-muted)",marginTop:4,fontWeight:400},headerRule:{height:1,background:"var(--border)",marginTop:20},
   resetBtn:{fontFamily:"'DM Sans',sans-serif",fontSize:13,fontWeight:500,color:"var(--accent)",background:"var(--accent-light)",border:"1px solid var(--accent)",borderRadius:6,padding:"8px 16px",cursor:"pointer"},
-  main:{maxWidth:780,margin:"0 auto",padding:"32px 32px 64px"},uploadSection:{display:"flex",flexDirection:"column",gap:24},
+  main:{padding:"32px 48px 64px"},uploadSection:{display:"flex",flexDirection:"column",gap:24},
   uploadZone:{border:"1.5px dashed var(--border)",borderRadius:12,padding:"48px 32px",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"},
   uploadIcon:{fontSize:28,color:"var(--text-muted)",marginBottom:12,fontWeight:300},uploadText:{fontSize:15,color:"var(--text-secondary)",fontWeight:500},
   uploadHint:{fontSize:13,color:"var(--text-muted)",marginTop:4},
@@ -232,7 +311,7 @@ const styles = {
   error:{fontSize:13,color:"var(--risk-red)",background:"var(--risk-bg)",padding:"10px 14px",borderRadius:8},
   analyzeBtn:{fontFamily:"'DM Sans',sans-serif",fontSize:15,fontWeight:600,color:"#fff",background:"var(--accent)",border:"none",borderRadius:8,padding:"14px 28px",cursor:"pointer",width:"100%"},
   progressContainer:{display:"flex",flexDirection:"column",gap:8},progressTrack:{height:3,background:"var(--border)",borderRadius:2,overflow:"hidden"},
-  progressFill:{height:"100%",background:"var(--accent)",borderRadius:2,transition:"width 0.5s ease"},progressText:{fontSize:13,color:"var(--text-muted)",fontStyle:"italic"},
+  progressFill:{height:"100%",background:"var(--accent)",borderRadius:2,transition:"width 0.3s linear"},progressText:{fontSize:13,color:"var(--text-muted)",fontStyle:"italic"},
   infoBox:{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:10,padding:"20px 24px",marginTop:8},
   infoTitle:{fontSize:13,fontWeight:600,color:"var(--text-muted)",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:16},
   infoGrid:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16},infoItem:{},
@@ -252,6 +331,26 @@ const styles = {
   td:{padding:"9px 14px",borderBottom:"1px solid var(--border)",whiteSpace:"nowrap",fontSize:13.5,fontVariantNumeric:"tabular-nums"},
   tableNote:{fontSize:11,color:"var(--text-muted)",marginTop:6,fontStyle:"italic"},
   disclaimer:{fontSize:12,color:"var(--text-muted)",marginTop:24,padding:"12px 16px",background:"var(--surface)",border:"1px solid var(--border)",borderRadius:8,lineHeight:1.5,fontStyle:"italic"},
+  docsDropdown:{marginTop:16,background:"var(--surface)",border:"1px solid var(--border)",borderRadius:10,overflow:"hidden"},
+  docsToggle:{fontFamily:"'DM Sans',sans-serif",width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 20px",background:"none",border:"none",cursor:"pointer",color:"var(--text-primary)"},
+  docsToggleLeft:{display:"flex",flexDirection:"column",alignItems:"flex-start",gap:2},
+  docsToggleText:{fontSize:15,fontWeight:600,color:"var(--risk-red)"},
+  docsToggleHint:{fontSize:11,color:"var(--text-muted)",fontWeight:400},
+  docsArrow:{fontSize:16,color:"var(--risk-red)",transition:"transform 0.2s ease",fontWeight:700},
+  docsContent:{padding:"0 20px 20px",lineHeight:1.7},
+  feedbackSection:{marginTop:32,padding:"24px",background:"var(--surface)",border:"1px solid var(--border)",borderRadius:10},
+  feedbackTitle:{fontSize:15,fontWeight:600,color:"var(--text-primary)",marginBottom:4},
+  feedbackHint:{fontSize:13,color:"var(--text-muted)",marginBottom:16,lineHeight:1.4},
+  feedbackInputRow:{display:"flex",gap:8},
+  feedbackInput:{fontFamily:"'DM Sans',sans-serif",flex:1,fontSize:13,padding:"10px 14px",border:"1px solid var(--border)",borderRadius:8,background:"var(--bg)",color:"var(--text-primary)",outline:"none"},
+  feedbackSubmitBtn:{fontFamily:"'DM Sans',sans-serif",fontSize:13,fontWeight:600,color:"#fff",background:"var(--accent)",border:"none",borderRadius:8,padding:"10px 20px",cursor:"pointer",whiteSpace:"nowrap"},
+  feedbackToggle:{fontFamily:"'DM Sans',sans-serif",fontSize:12,color:"var(--text-muted)",background:"none",border:"none",cursor:"pointer",marginTop:12,padding:0,textDecoration:"underline"},
+  feedbackHistoryList:{marginTop:10,display:"flex",flexDirection:"column",gap:6},
+  feedbackItem:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,padding:"8px 12px",background:"var(--bg)",borderRadius:6,border:"1px solid var(--border)"},
+  feedbackItemText:{display:"flex",flexDirection:"column",gap:2,flex:1,minWidth:0},
+  feedbackItemRule:{fontSize:13,color:"var(--text-secondary)",lineHeight:1.4},
+  feedbackItemDate:{fontSize:11,color:"var(--text-muted)"},
+  feedbackRemoveBtn:{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:"var(--risk-red)",background:"none",border:"1px solid var(--risk-red)",borderRadius:4,padding:"3px 8px",cursor:"pointer",whiteSpace:"nowrap"},
 };
 
 export default AnalyzerApp;
