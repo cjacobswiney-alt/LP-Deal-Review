@@ -7,7 +7,7 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') { res.status(405).end(); return; }
 
   try {
-    const { pdfText, fileName, fileSizeMb } = req.body;
+    const { pdfText, fileName, fileSizeMb, userEmail } = req.body;
     if (!pdfText || !pdfText.trim()) { res.status(400).json({ error: 'pdfText required' }); return; }
 
     const userContent = [{ type: 'text', text: `<pitch_book_text>\n${pdfText}\n</pitch_book_text>\n\n${USER_MSG}` }];
@@ -54,7 +54,7 @@ export default async function handler(req, res) {
     const combined = orderSections(all);
 
     // Log the analysis to Supabase (non-blocking)
-    logAnalysis({ fileName, analysisText: combined, fileSizeMb }).catch(() => {});
+    logAnalysis({ fileName, analysisText: combined, fileSizeMb, userEmail }).catch(() => {});
 
     res.status(200).json({ analysis: combined });
 

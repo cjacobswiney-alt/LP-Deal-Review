@@ -16,6 +16,34 @@ async function extractPdfText(file) {
 }
 
 function AnalyzerApp() {
+  const [userEmail, setUserEmail] = useState(() => {
+    try { return localStorage.getItem("lp-user-email") || ""; } catch { return ""; }
+  });
+  const [registered, setRegistered] = useState(() => {
+    try { return !!localStorage.getItem("lp-user-email"); } catch { return false; }
+  });
+  const [regName, setRegName] = useState("");
+  const [regEmail, setRegEmail] = useState("");
+  const [regCompany, setRegCompany] = useState("");
+  const [regError, setRegError] = useState("");
+  const [regLoading, setRegLoading] = useState(false);
+
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    if (!regEmail.trim()) { setRegError("Email is required."); return; }
+    setRegLoading(true); setRegError("");
+    try {
+      const res = await fetch("/api/register", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: regEmail.trim(), name: regName.trim(), company: regCompany.trim() }),
+      });
+      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || "Registration failed"); }
+      localStorage.setItem("lp-user-email", regEmail.trim().toLowerCase());
+      setUserEmail(regEmail.trim().toLowerCase());
+      setRegistered(true);
+    } catch (err) { setRegError(err.message); } finally { setRegLoading(false); }
+  };
+
   const [file, setFile] = useState(null);
   const [filePreview, setFilePreview] = useState(null);
   const [analysis, setAnalysis] = useState("");
@@ -85,7 +113,7 @@ function AnalyzerApp() {
       const pdfText = await extractPdfText(file);
       const response = await fetch("/api/analyze", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pdfText, fileName: file.name, fileSizeMb: parseFloat((file.size / (1024 * 1024)).toFixed(1)) }),
+        body: JSON.stringify({ pdfText, fileName: file.name, fileSizeMb: parseFloat((file.size / (1024 * 1024)).toFixed(1)), userEmail }),
       });
       if (!response.ok) { const err = await response.json().catch(() => ({})); throw new Error(err?.error?.message || `API error: ${response.status}`); }
       // Handle both SSE (local dev) and JSON (Vercel) responses
@@ -189,13 +217,39 @@ function AnalyzerApp() {
     return elements;
   };
 
+  const globalStyles = `
+    @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;600&display=swap');
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { --bg:#faf9f7;--surface:#fff;--text-primary:#1a1a1a;--text-secondary:#5c5c5c;--text-muted:#8a8a8a;--border:#e8e5e0;--accent:#2c5f4a;--accent-light:#e8f0ec;--risk-red:#c0392b;--risk-bg:#fdf2f0;--blue:#2563eb;--blue-light:#eff6ff; }
+    @media(prefers-color-scheme:dark){ :root { --bg:#141413;--surface:#1e1e1c;--text-primary:#e8e5e0;--text-secondary:#a0a0a0;--text-muted:#6a6a6a;--border:#2e2e2c;--accent:#5dab8c;--accent-light:#1a2e25;--risk-red:#e05a4b;--risk-bg:#2a1a18;--blue:#60a5fa;--blue-light:#1a2233; }}`;
+
+  if (!registered) {
+    return (
+      <div style={styles.container}>
+        <style>{globalStyles}</style>
+        <div style={styles.gateWrapper}>
+          <div style={styles.gateCard}>
+            <h1 style={styles.gateTitle}>Pitch Book Analyzer</h1>
+            <p style={styles.gateSubtitle}>AI-powered GP due diligence prep for LP investors</p>
+            <div style={styles.gateDivider} />
+            <p style={styles.gateDesc}>Upload a GP pitch book and get a structured due diligence report with specific questions to ask, documents to request, and independent verification steps.</p>
+            <form onSubmit={handleRegister} style={styles.gateForm}>
+              <input value={regName} onChange={e=>setRegName(e.target.value)} placeholder="Name" style={styles.gateInput} />
+              <input value={regEmail} onChange={e=>setRegEmail(e.target.value)} placeholder="Email *" type="email" required style={styles.gateInput} />
+              <input value={regCompany} onChange={e=>setRegCompany(e.target.value)} placeholder="Company" style={styles.gateInput} />
+              {regError && <p style={styles.gateError}>{regError}</p>}
+              <button type="submit" disabled={regLoading} style={{...styles.gateBtn, opacity: regLoading ? 0.5 : 1}}>{regLoading ? "..." : "Get Started"}</button>
+            </form>
+            <p style={styles.gateDisclaimer}>We'll never share your information. By continuing you agree to our terms of use.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={styles.container}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;600&display=swap');
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        :root { --bg:#faf9f7;--surface:#fff;--text-primary:#1a1a1a;--text-secondary:#5c5c5c;--text-muted:#8a8a8a;--border:#e8e5e0;--accent:#2c5f4a;--accent-light:#e8f0ec;--risk-red:#c0392b;--risk-bg:#fdf2f0;--blue:#2563eb;--blue-light:#eff6ff; }
-        @media(prefers-color-scheme:dark){ :root { --bg:#141413;--surface:#1e1e1c;--text-primary:#e8e5e0;--text-secondary:#a0a0a0;--text-muted:#6a6a6a;--border:#2e2e2c;--accent:#5dab8c;--accent-light:#1a2e25;--risk-red:#e05a4b;--risk-bg:#2a1a18;--blue:#60a5fa;--blue-light:#1a2233; }}
+      <style>{`${globalStyles}
         .upload-zone{transition:all .2s ease} .upload-zone:hover{border-color:var(--accent)!important;background:var(--accent-light)!important}
         .analyze-btn{transition:all .15s ease} .analyze-btn:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 4px 12px rgba(44,95,74,.25)} .analyze-btn:disabled{opacity:.5;cursor:not-allowed}
         .progress-bar{animation:pp 1.5s ease-in-out infinite} @keyframes pp{0%,100%{opacity:1}50%{opacity:.7}}
@@ -316,6 +370,17 @@ function AnalyzerApp() {
 
 const styles = {
   container:{fontFamily:"'DM Sans',sans-serif",background:"var(--bg)",color:"var(--text-primary)",minHeight:"100vh",width:"100%"},
+  gateWrapper:{display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh",padding:24},
+  gateCard:{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:16,padding:"48px 40px",maxWidth:440,width:"100%",textAlign:"center"},
+  gateTitle:{fontFamily:"'DM Serif Display',serif",fontSize:32,fontWeight:400,color:"var(--text-primary)",letterSpacing:"-0.02em",marginBottom:6},
+  gateSubtitle:{fontSize:14,color:"var(--text-muted)",marginBottom:0},
+  gateDivider:{height:1,background:"var(--border)",margin:"24px 0"},
+  gateDesc:{fontSize:14,color:"var(--text-secondary)",lineHeight:1.6,marginBottom:24,textAlign:"left"},
+  gateForm:{display:"flex",flexDirection:"column",gap:12},
+  gateInput:{fontFamily:"'DM Sans',sans-serif",fontSize:14,padding:"12px 14px",border:"1px solid var(--border)",borderRadius:8,background:"var(--bg)",color:"var(--text-primary)",outline:"none"},
+  gateBtn:{fontFamily:"'DM Sans',sans-serif",fontSize:15,fontWeight:600,color:"#fff",background:"var(--accent)",border:"none",borderRadius:8,padding:"14px",cursor:"pointer",marginTop:4},
+  gateError:{fontSize:13,color:"var(--risk-red)",textAlign:"left"},
+  gateDisclaimer:{fontSize:11,color:"var(--text-muted)",marginTop:16,lineHeight:1.4},
   header:{padding:"32px 48px 0"},headerInner:{display:"flex",justifyContent:"space-between",alignItems:"flex-start"},
   title:{fontFamily:"'DM Serif Display',serif",fontSize:28,fontWeight:400,color:"var(--text-primary)",letterSpacing:"-0.02em",lineHeight:1.2},
   subtitle:{fontSize:14,color:"var(--text-muted)",marginTop:4,fontWeight:400},headerRule:{height:1,background:"var(--border)",marginTop:20},

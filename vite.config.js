@@ -2,6 +2,7 @@ import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import { readAllFeedback, readApprovedFeedback, addFeedbackRules, deleteFeedbackRule, logAnalysis } from './lib/feedback-store.js'
 import { HAIKU_SYSTEM, SONNET_SYSTEM, USER_MSG, buildFeedbackBlock, parseSections, orderSections } from './lib/prompts.js'
+import { supabase } from './lib/supabase.js'
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
@@ -64,6 +65,25 @@ export default defineConfig(({ mode }) => {
               return;
             }
             next();
+          });
+
+          // --- /api/register ---
+          server.middlewares.use('/api/register', (req, res, next) => {
+            if (req.method !== 'POST') { next(); return; }
+            let body = '';
+            req.on('data', chunk => body += chunk);
+            req.on('end', async () => {
+              try {
+                const { email, name, company } = JSON.parse(body);
+                if (!email || !email.trim()) { res.statusCode = 400; res.end(JSON.stringify({ error: 'email required' })); return; }
+                const { error } = await supabase
+                  .from('users')
+                  .upsert({ email: email.trim().toLowerCase(), name: name?.trim() || null, company: company?.trim() || null }, { onConflict: 'email' });
+                if (error) { res.statusCode = 500; res.end(JSON.stringify({ error: error.message })); return; }
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ ok: true }));
+              } catch (err) { res.statusCode = 500; res.end(JSON.stringify({ error: err.message })); }
+            });
           });
 
           // --- /api/analyze ---
