@@ -1,4 +1,19 @@
 import { useState, useRef, useCallback } from "react";
+import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
+
+GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.mjs", import.meta.url).href;
+
+async function extractPdfText(file) {
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await getDocument({ data: arrayBuffer }).promise;
+  const pages = [];
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    pages.push(content.items.map(item => item.str).join(" "));
+  }
+  return pages.join("\n\n");
+}
 
 function AnalyzerApp() {
   const [file, setFile] = useState(null);
@@ -66,42 +81,45 @@ function AnalyzerApp() {
     }, 300);
 
     try {
-      const base64 = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result.split(",")[1]); r.onerror = () => rej(new Error("Failed to read file")); r.readAsDataURL(file); });
+      // Extract text client-side to avoid Vercel's 4.5MB body limit
+      const pdfText = await extractPdfText(file);
       const response = await fetch("/api/analyze", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pdfBase64: base64 }),
+        body: JSON.stringify({ pdfText }),
       });
       if (!response.ok) { const err = await response.json().catch(() => ({})); throw new Error(err?.error?.message || `API error: ${response.status}`); }
-      // Read SSE stream
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      let fullText = "";
-      const processLines = (linesToProcess) => {
-        for (const line of linesToProcess) {
-          if (line === "data: [DONE]") continue;
-          if (!line.startsWith("data: ")) continue;
-          try {
-            const { text } = JSON.parse(line.slice(6));
-            if (text) { fullText += text; setAnalysis(fullText); }
-          } catch {}
+      // Handle both SSE (local dev) and JSON (Vercel) responses
+      const contentType = response.headers.get("content-type") || "";
+      if (contentType.includes("text/event-stream")) {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let fullText = "";
+        const processLines = (linesToProcess) => {
+          for (const line of linesToProcess) {
+            if (line === "data: [DONE]") continue;
+            if (!line.startsWith("data: ")) continue;
+            try {
+              const { text } = JSON.parse(line.slice(6));
+              if (text) { fullText += text; setAnalysis(fullText); }
+            } catch {}
+          }
+        };
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) { buffer += decoder.decode(); processLines(buffer.split("\n")); break; }
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
+          processLines(lines);
         }
-      };
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) {
-          buffer += decoder.decode();
-          processLines(buffer.split("\n"));
-          break;
-        }
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-        processLines(lines);
+        if (!fullText) setAnalysis("No analysis returned.");
+      } else {
+        const data = await response.json();
+        setAnalysis(data.analysis || "No analysis returned.");
       }
       clearInterval(progressInterval);
       setProgress(100);
-      if (!fullText) setAnalysis("No analysis returned.");
     } catch (err) { clearInterval(progressInterval); setError(err.message || "Analysis failed."); } finally { setLoading(false); }
   };
 

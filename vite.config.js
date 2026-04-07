@@ -75,31 +75,15 @@ export default defineConfig(({ mode }) => {
             req.on('data', chunk => body += chunk);
             req.on('end', async () => {
               try {
-                const { pdfBase64 } = JSON.parse(body);
-                if (!pdfBase64) { res.statusCode = 400; res.end(JSON.stringify({ error: 'pdfBase64 required' })); return; }
+                const { pdfText } = JSON.parse(body);
+                if (!pdfText || !pdfText.trim()) { res.statusCode = 400; res.end(JSON.stringify({ error: 'pdfText required' })); return; }
 
-                let pdfText = '';
-                try {
-                  const pdfParse = (await import('pdf-parse')).default;
-                  const buffer = Buffer.from(pdfBase64, 'base64');
-                  const parsed = await pdfParse(buffer);
-                  pdfText = parsed.text || '';
-                } catch (e) {
-                  console.log('[analyze] PDF text extraction failed:', e.message);
-                }
-
-                const useTextMode = pdfText.trim().length > 500;
-                const userContent = useTextMode
-                  ? [{ type: 'text', text: `<pitch_book_text>\n${pdfText}\n</pitch_book_text>\n\n${USER_MSG}` }]
-                  : [
-                      { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdfBase64 } },
-                      { type: 'text', text: USER_MSG },
-                    ];
+                const userContent = [{ type: 'text', text: `<pitch_book_text>\n${pdfText}\n</pitch_book_text>\n\n${USER_MSG}` }];
 
                 const feedbackList = readFeedback();
                 const feedback = buildFeedbackBlock(feedbackList);
 
-                const headers = {
+                const apiHeaders = {
                   'Content-Type': 'application/json',
                   'x-api-key': env.ANTHROPIC_API_KEY,
                   'anthropic-version': '2023-06-01',
@@ -107,7 +91,7 @@ export default defineConfig(({ mode }) => {
 
                 const makeRequest = (model, systemPrompt) => fetch('https://api.anthropic.com/v1/messages', {
                   method: 'POST',
-                  headers,
+                  headers: apiHeaders,
                   body: JSON.stringify({
                     model,
                     max_tokens: 8192,
