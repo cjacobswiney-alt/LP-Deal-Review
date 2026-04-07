@@ -77,7 +77,7 @@ export default defineConfig(({ mode }) => {
                 const { email, name, company } = JSON.parse(body);
                 if (!email || !email.trim()) { res.statusCode = 400; res.end(JSON.stringify({ error: 'email required' })); return; }
                 const { error } = await supabase
-                  .from('users')
+                  .from('app_users')
                   .upsert({ email: email.trim().toLowerCase(), name: name?.trim() || null, company: company?.trim() || null }, { onConflict: 'email' });
                 if (error) { res.statusCode = 500; res.end(JSON.stringify({ error: error.message })); return; }
                 res.setHeader('Content-Type', 'application/json');
