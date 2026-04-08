@@ -1,5 +1,4 @@
-import { HAIKU_SYSTEM, USER_MSG, buildFeedbackBlock } from '../lib/prompts.js';
-import { readApprovedFeedback } from '../lib/feedback-store.js';
+import { HAIKU_SYSTEM, USER_MSG } from '../lib/prompts.js';
 
 export const config = { maxDuration: 60 };
 
@@ -10,10 +9,8 @@ export default async function handler(req, res) {
     const { pdfText } = req.body;
     if (!pdfText || !pdfText.trim()) { res.status(400).json({ error: 'pdfText required' }); return; }
 
-    const userContent = [{ type: 'text', text: `<pitch_book_text>\n${pdfText}\n</pitch_book_text>\n\n${USER_MSG}` }];
-
-    const feedbackList = await readApprovedFeedback();
-    const feedback = buildFeedbackBlock(feedbackList);
+    // Truncate text to ~80k chars (~20k tokens) to keep response fast
+    const trimmed = pdfText.slice(0, 80000);
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -24,9 +21,9 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 8192,
-        system: [{ type: 'text', text: HAIKU_SYSTEM + feedback, cache_control: { type: 'ephemeral' } }],
-        messages: [{ role: 'user', content: userContent }],
+        max_tokens: 4096,
+        system: HAIKU_SYSTEM,
+        messages: [{ role: 'user', content: `<pitch_book_text>\n${trimmed}\n</pitch_book_text>\n\n${USER_MSG}` }],
       }),
     });
 
