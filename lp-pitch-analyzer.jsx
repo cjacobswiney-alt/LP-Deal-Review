@@ -116,50 +116,45 @@ function AnalyzerApp() {
     try {
       // Extract text client-side to avoid Vercel's 4.5MB body limit
       const pdfText = await extractPdfText(file);
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 150000); // 2.5 min timeout
-      const response = await fetch("/api/analyze", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pdfText, fileName: file.name, fileSizeMb: parseFloat((file.size / (1024 * 1024)).toFixed(1)), userEmail }),
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
-      if (!response.ok) { const err = await response.json().catch(() => ({})); throw new Error(err?.error?.message || `API error: ${response.status}`); }
-      // Handle both SSE (local dev) and JSON (Vercel) responses
-      const contentType = response.headers.get("content-type") || "";
-      if (contentType.includes("text/event-stream")) {
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-        let fullText = "";
-        const processLines = (linesToProcess) => {
-          for (const line of linesToProcess) {
-            if (line === "data: [DONE]") continue;
-            if (!line.startsWith("data: ")) continue;
-            try {
-              const { text } = JSON.parse(line.slice(6));
-              if (text) { fullText += text; setAnalysis(fullText); }
-            } catch {}
-          }
-        };
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) { buffer += decoder.decode(); processLines(buffer.split("\n")); break; }
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() || "";
-          processLines(lines);
+      const payload = { pdfText, fileName: file.name, fileSizeMb: parseFloat((file.size / (1024 * 1024)).toFixed(1)), userEmail };
+      const fetchOpts = { method: "POST", headers: { "Content-Type": "application/json" } };
+
+      // Fire Haiku + Sonnet in parallel as separate requests (each under 60s for Vercel free tier)
+      const [haikuRes, sonnetRes] = await Promise.all([
+        fetch("/api/analyze-haiku", { ...fetchOpts, body: JSON.stringify(payload) }),
+        fetch("/api/analyze-sonnet", { ...fetchOpts, body: JSON.stringify(payload) }),
+      ]);
+
+      if (!haikuRes.ok) { const err = await haikuRes.json().catch(() => ({})); throw new Error(err?.error?.message || `Haiku API error: ${haikuRes.status}`); }
+      if (!sonnetRes.ok) { const err = await sonnetRes.json().catch(() => ({})); throw new Error(err?.error?.message || `Sonnet API error: ${sonnetRes.status}`); }
+
+      const [haikuData, sonnetData] = await Promise.all([haikuRes.json(), sonnetRes.json()]);
+      const haikuText = haikuData.text || "";
+      const sonnetText = sonnetData.text || "";
+
+      // Parse sections and reassemble in correct order
+      const parseSections = (text) => {
+        const sections = {};
+        const parts = text.split(/(?=^## )/m);
+        for (const part of parts) {
+          const match = part.match(/^## (.+)/);
+          if (match) sections[match[1].trim()] = part.trim();
         }
-        if (!fullText) setAnalysis("No analysis returned.");
-      } else {
-        const text = await response.text();
-        try {
-          const data = JSON.parse(text);
-          setAnalysis(data.analysis || "No analysis returned.");
-        } catch {
-          setAnalysis(text || "No analysis returned.");
-        }
+        return sections;
+      };
+
+      const all = { ...parseSections(haikuText), ...parseSections(sonnetText) };
+      const sectionOrder = ["Deal Snapshot", "Underwritten Deal Returns", "Verdict", "Before Your Next GP Call", "Documents to Request"];
+      const ordered = [];
+      for (const title of sectionOrder) {
+        const titleLower = title.toLowerCase();
+        const found = Object.keys(all).find(k => k.toLowerCase().includes(titleLower) || titleLower.includes(k.toLowerCase()));
+        if (found) ordered.push(all[found]);
       }
+      for (const [, val] of Object.entries(all)) { if (!ordered.includes(val)) ordered.push(val); }
+
+      const combined = ordered.join("\n\n");
+      setAnalysis(combined || "No analysis returned.");
       clearInterval(progressInterval);
       setProgress(100);
     } catch (err) { clearInterval(progressInterval); setError(err.name === "AbortError" ? "Analysis timed out. Please try again with a smaller document." : (err.message || "Analysis failed.")); } finally { setLoading(false); }

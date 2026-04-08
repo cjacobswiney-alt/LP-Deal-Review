@@ -86,107 +86,58 @@ export default defineConfig(({ mode }) => {
             });
           });
 
-          // --- /api/analyze ---
-          server.middlewares.use('/api/analyze', async (req, res) => {
+          // --- /api/analyze-haiku ---
+          server.middlewares.use('/api/analyze-haiku', async (req, res) => {
             if (req.method !== 'POST') { res.statusCode = 405; res.end(); return; }
             let body = '';
             req.on('data', chunk => body += chunk);
             req.on('end', async () => {
               try {
-                const { pdfText, fileName, fileSizeMb } = JSON.parse(body);
+                const { pdfText } = JSON.parse(body);
                 if (!pdfText || !pdfText.trim()) { res.statusCode = 400; res.end(JSON.stringify({ error: 'pdfText required' })); return; }
-
                 const userContent = [{ type: 'text', text: `<pitch_book_text>\n${pdfText}\n</pitch_book_text>\n\n${USER_MSG}` }];
-
                 const feedbackList = await readApprovedFeedback();
                 const feedback = buildFeedbackBlock(feedbackList);
-
-                const apiHeaders = {
-                  'Content-Type': 'application/json',
-                  'x-api-key': env.ANTHROPIC_API_KEY,
-                  'anthropic-version': '2023-06-01',
-                };
-
-                const makeRequest = (model, systemPrompt) => fetch('https://api.anthropic.com/v1/messages', {
+                const response = await fetch('https://api.anthropic.com/v1/messages', {
                   method: 'POST',
-                  headers: apiHeaders,
-                  body: JSON.stringify({
-                    model,
-                    max_tokens: 8192,
-                    system: [{ type: 'text', text: systemPrompt + feedback, cache_control: { type: 'ephemeral' } }],
-                    messages: [{ role: 'user', content: userContent }],
-                    stream: true,
-                  }),
+                  headers: { 'Content-Type': 'application/json', 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+                  body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 8192,
+                    system: [{ type: 'text', text: HAIKU_SYSTEM + feedback, cache_control: { type: 'ephemeral' } }],
+                    messages: [{ role: 'user', content: userContent }] }),
                 });
-
-                const [haikuRes, sonnetRes] = await Promise.all([
-                  makeRequest('claude-haiku-4-5-20251001', HAIKU_SYSTEM),
-                  makeRequest('claude-sonnet-4-20250514', SONNET_SYSTEM),
-                ]);
-
-                const collectStream = async (response) => {
-                  let text = '';
-                  const reader = response.body.getReader();
-                  const decoder = new TextDecoder();
-                  let buffer = '';
-                  while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) {
-                      buffer += decoder.decode();
-                      for (const line of buffer.split('\n')) {
-                        if (!line.startsWith('data: ')) continue;
-                        const data = line.slice(6);
-                        if (data === '[DONE]') continue;
-                        try { const e = JSON.parse(data); if (e.type === 'content_block_delta' && e.delta?.text) text += e.delta.text; } catch {}
-                      }
-                      break;
-                    }
-                    buffer += decoder.decode(value, { stream: true });
-                    const lines = buffer.split('\n');
-                    buffer = lines.pop() || '';
-                    for (const line of lines) {
-                      if (!line.startsWith('data: ')) continue;
-                      const data = line.slice(6);
-                      if (data === '[DONE]') continue;
-                      try { const e = JSON.parse(data); if (e.type === 'content_block_delta' && e.delta?.text) text += e.delta.text; } catch {}
-                    }
-                  }
-                  return text;
-                };
-
-                const [haikuText, sonnetText] = await Promise.all([
-                  collectStream(haikuRes),
-                  collectStream(sonnetRes),
-                ]);
-
-                const haikuSections = parseSections(haikuText);
-                const sonnetSections = parseSections(sonnetText);
-                console.log('[analyze] Haiku sections:', Object.keys(haikuSections));
-                console.log('[analyze] Sonnet sections:', Object.keys(sonnetSections));
-                const all = { ...haikuSections, ...sonnetSections };
-                const combined = orderSections(all);
-
-                // Log analysis to Supabase (non-blocking)
-                logAnalysis({ fileName, analysisText: combined, fileSizeMb }).catch(() => {});
-
-                res.setHeader('Content-Type', 'text/event-stream');
-                res.setHeader('Cache-Control', 'no-cache');
-                res.setHeader('Connection', 'keep-alive');
-
-                const chunkSize = 80;
-                for (let i = 0; i < combined.length; i += chunkSize) {
-                  const chunk = combined.slice(i, i + chunkSize);
-                  res.write(`data: ${JSON.stringify({ text: chunk })}\n\n`);
-                  await new Promise(r => setTimeout(r, 15));
-                }
-                res.write('data: [DONE]\n\n');
-                res.end();
-              } catch (err) {
-                console.error('[analyze] Error:', err);
-                res.statusCode = 500;
+                const data = await response.json();
+                const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n');
                 res.setHeader('Content-Type', 'application/json');
-                res.end(JSON.stringify({ error: err.message }));
-              }
+                res.end(JSON.stringify({ text }));
+              } catch (err) { res.statusCode = 500; res.end(JSON.stringify({ error: err.message })); }
+            });
+          });
+
+          // --- /api/analyze-sonnet ---
+          server.middlewares.use('/api/analyze-sonnet', async (req, res) => {
+            if (req.method !== 'POST') { res.statusCode = 405; res.end(); return; }
+            let body = '';
+            req.on('data', chunk => body += chunk);
+            req.on('end', async () => {
+              try {
+                const { pdfText, fileName, fileSizeMb, userEmail } = JSON.parse(body);
+                if (!pdfText || !pdfText.trim()) { res.statusCode = 400; res.end(JSON.stringify({ error: 'pdfText required' })); return; }
+                const userContent = [{ type: 'text', text: `<pitch_book_text>\n${pdfText}\n</pitch_book_text>\n\n${USER_MSG}` }];
+                const feedbackList = await readApprovedFeedback();
+                const feedback = buildFeedbackBlock(feedbackList);
+                const response = await fetch('https://api.anthropic.com/v1/messages', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+                  body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 8192,
+                    system: [{ type: 'text', text: SONNET_SYSTEM + feedback, cache_control: { type: 'ephemeral' } }],
+                    messages: [{ role: 'user', content: userContent }] }),
+                });
+                const data = await response.json();
+                const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n');
+                logAnalysis({ fileName, analysisText: text, fileSizeMb, userEmail }).catch(() => {});
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ text }));
+              } catch (err) { res.statusCode = 500; res.end(JSON.stringify({ error: err.message })); }
             });
           });
         },
