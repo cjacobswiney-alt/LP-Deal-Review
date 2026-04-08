@@ -349,7 +349,7 @@ function AnalyzerApp() {
               }} style={styles.docsToggle}>
                 <div style={styles.docsToggleLeft}>
                   <span style={styles.docsToggleText}>Documents to Request Before Committing</span>
-                  <span style={styles.docsToggleHint}>{docsOpen ? "Click to collapse" : "Click to expand checklist"}</span>
+                  <span style={styles.docsToggleHint}>{docsOpen ? "Click to collapse" : "Click to expand — may take a minute to generate"}</span>
                 </div>
                 <span style={{...styles.docsArrow, transform: docsOpen ? "rotate(180deg)" : "rotate(0deg)"}}>&#9662;</span>
               </button>
