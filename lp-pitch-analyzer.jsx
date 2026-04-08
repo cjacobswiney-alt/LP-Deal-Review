@@ -59,12 +59,18 @@ function AnalyzerApp() {
   const [filePreview, setFilePreview] = useState(null);
   const [analysis, setAnalysis] = useState("");
   const [loading, setLoading] = useState(false);
+  const [sonnetLoading, setSonnetLoading] = useState(false);
   const [error, setError] = useState(null);
   const [dragOver, setDragOver] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [timeEstimate, setTimeEstimate] = useState("");
   const [lastPdfText, setLastPdfText] = useState("");
+  const [extractedText, setExtractedText] = useState("");
+  const [extracting, setExtracting] = useState(false);
+  const [extractReady, setExtractReady] = useState(false);
   const [docsText, setDocsText] = useState("");
   const [docsLoading, setDocsLoading] = useState(false);
+  const [cachedResult, setCachedResult] = useState(false);
   const [feedbackInput, setFeedbackInput] = useState("");
   const [feedbackList, setFeedbackList] = useState([]);
   const [docsOpen, setDocsOpen] = useState(false);
@@ -105,28 +111,90 @@ function AnalyzerApp() {
     setFilePreview({ name: f.name, size: (f.size / (1024 * 1024)).toFixed(1) });
     setError(null);
     setAnalysis("");
+    setExtractReady(false);
+    setExtractedText("");
+    // Extract text immediately on file select
+    setExtracting(true);
+    extractPdfText(f).then(text => {
+      setExtractedText(text);
+      setExtractReady(true);
+      setExtracting(false);
+    }).catch(err => {
+      setError(err.message);
+      setExtracting(false);
+    });
   }, []);
 
   const onDrop = useCallback((e) => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer?.files?.[0]); }, [handleFile]);
 
-  const analyzeDocument = async () => {
-    if (!file) return;
-    setLoading(true); setError(null); setAnalysis(""); setProgress(0);
+  // Helper to parse markdown sections
+  const parseSections = (text) => {
+    const sections = {};
+    const parts = text.split(/(?=^## )/m);
+    for (const part of parts) {
+      const match = part.match(/^## (.+)/);
+      if (match) sections[match[1].trim()] = part.trim();
+    }
+    return sections;
+  };
 
-    // Smooth progress animation — crawls from 0 to ~90 over ~60 seconds, slowing as it goes
-    let currentProgress = 0;
+  const assembleSections = (allSections) => {
+    const sectionOrder = ["Deal Snapshot", "Underwritten Deal Returns", "Verdict", "Before Your Next GP Call"];
+    const ordered = [];
+    for (const title of sectionOrder) {
+      const titleLower = title.toLowerCase();
+      const found = Object.keys(allSections).find(k => k.toLowerCase().includes(titleLower) || titleLower.includes(k.toLowerCase()));
+      if (found) ordered.push(allSections[found]);
+    }
+    for (const [, val] of Object.entries(allSections)) { if (!ordered.includes(val)) ordered.push(val); }
+    return ordered.join("\n\n");
+  };
+
+  // Simple hash for caching
+  const hashText = async (text) => {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(text.slice(0, 80000));
+    const hash = await crypto.subtle.digest("SHA-256", data);
+    return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, "0")).join("");
+  };
+
+  const analyzeDocument = async () => {
+    if (!file || !extractReady) return;
+    setLoading(true); setSonnetLoading(true); setError(null); setAnalysis(""); setProgress(0); setDocsText(""); setDocsOpen(false); setCachedResult(false);
+
+    const pdfText = extractedText;
+    setLastPdfText(pdfText);
+    const isLargeDeck = pdfText.length > 120000;
+
+    // Time estimate
+    const estSeconds = isLargeDeck ? 55 : 35;
+    let secondsElapsed = 0;
+    setTimeEstimate(`~${estSeconds} seconds`);
+
     const progressInterval = setInterval(() => {
-      const remaining = 92 - currentProgress;
-      const increment = Math.max(0.15, remaining * 0.02);
-      currentProgress = Math.min(92, currentProgress + increment);
-      setProgress(currentProgress);
-    }, 300);
+      secondsElapsed++;
+      const remaining = Math.max(0, estSeconds - secondsElapsed);
+      if (remaining > 5) setTimeEstimate(`~${remaining} seconds`);
+      else if (remaining > 0) setTimeEstimate("Almost done...");
+      else setTimeEstimate("Finalizing...");
+      const pct = Math.min(92, (secondsElapsed / estSeconds) * 90);
+      setProgress(pct);
+    }, 1000);
 
     try {
-      // Extract text client-side to avoid Vercel's 4.5MB body limit
-      const pdfText = await extractPdfText(file);
-      setLastPdfText(pdfText);
-      setDocsText("");
+      // Check cache
+      const textHash = await hashText(pdfText);
+      const cached = sessionStorage.getItem(`analysis-${textHash}`);
+      if (cached) {
+        setAnalysis(cached);
+        setCachedResult(true);
+        clearInterval(progressInterval);
+        setProgress(100);
+        setTimeEstimate("");
+        setSonnetLoading(false);
+        setLoading(false);
+        return;
+      }
 
       // Upload PDF to Supabase Storage in background (non-blocking)
       (async () => {
@@ -139,51 +207,63 @@ function AnalyzerApp() {
           }
         } catch {}
       })();
+
       const payload = { pdfText, fileName: file.name, fileSizeMb: parseFloat((file.size / (1024 * 1024)).toFixed(1)), userEmail };
       const fetchOpts = { method: "POST", headers: { "Content-Type": "application/json" } };
 
-      // Fire Haiku (fast facts) + Sonnet (judgment) in parallel
-      const [haikuRes, sonnetRes] = await Promise.all([
-        fetch("/api/analyze-haiku", { ...fetchOpts, body: JSON.stringify(payload) }),
-        fetch("/api/analyze-sonnet", { ...fetchOpts, body: JSON.stringify(payload) }),
-      ]);
+      // Fire Haiku first — show results immediately when it returns
+      const haikuPromise = fetch("/api/analyze-haiku", { ...fetchOpts, body: JSON.stringify(payload) });
 
-      if (!haikuRes.ok) { const err = await haikuRes.json().catch(() => ({})); throw new Error(err?.error?.message || `Haiku API error: ${haikuRes.status}`); }
-      if (!sonnetRes.ok) { const err = await sonnetRes.json().catch(() => ({})); throw new Error(err?.error?.message || `Sonnet API error: ${sonnetRes.status}`); }
-
-      const [haikuData, sonnetData] = await Promise.all([haikuRes.json(), sonnetRes.json()]);
-      const haikuText = haikuData.text || "";
-      const sonnetText = sonnetData.text || "";
-
-      // Parse sections and reassemble in correct order
-      const parseSections = (text) => {
-        const sections = {};
-        const parts = text.split(/(?=^## )/m);
-        for (const part of parts) {
-          const match = part.match(/^## (.+)/);
-          if (match) sections[match[1].trim()] = part.trim();
-        }
-        return sections;
-      };
-
-      const all = { ...parseSections(haikuText), ...parseSections(sonnetText) };
-      const sectionOrder = ["Deal Snapshot", "Underwritten Deal Returns", "Verdict", "Before Your Next GP Call"];
-      const ordered = [];
-      for (const title of sectionOrder) {
-        const titleLower = title.toLowerCase();
-        const found = Object.keys(all).find(k => k.toLowerCase().includes(titleLower) || titleLower.includes(k.toLowerCase()));
-        if (found) ordered.push(all[found]);
+      // Fire Sonnet (or split into two for large decks)
+      let sonnetPromise;
+      if (isLargeDeck) {
+        const half = Math.floor(pdfText.length / 2);
+        const firstHalf = pdfText.slice(0, half);
+        const secondHalf = pdfText.slice(half);
+        sonnetPromise = Promise.all([
+          fetch("/api/analyze-sonnet", { ...fetchOpts, body: JSON.stringify({ ...payload, pdfText: firstHalf }) }),
+          fetch("/api/analyze-sonnet", { ...fetchOpts, body: JSON.stringify({ ...payload, pdfText: secondHalf, chunk: 2 }) }),
+        ]).then(async ([r1, r2]) => {
+          if (!r1.ok) throw new Error(`Sonnet API error: ${r1.status}`);
+          if (!r2.ok) throw new Error(`Sonnet chunk 2 error: ${r2.status}`);
+          const [d1, d2] = await Promise.all([r1.json(), r2.json()]);
+          return { text: (d1.text || "") + "\n\n" + (d2.text || "") };
+        });
+      } else {
+        sonnetPromise = fetch("/api/analyze-sonnet", { ...fetchOpts, body: JSON.stringify(payload) })
+          .then(async r => { if (!r.ok) throw new Error(`Sonnet API error: ${r.status}`); return r.json(); });
       }
-      for (const [, val] of Object.entries(all)) { if (!ordered.includes(val)) ordered.push(val); }
 
-      const combined = ordered.join("\n\n");
+      // Show Haiku results as soon as they arrive
+      const haikuRes = await haikuPromise;
+      if (!haikuRes.ok) { const err = await haikuRes.json().catch(() => ({})); throw new Error(err?.error?.message || `Haiku API error: ${haikuRes.status}`); }
+      const haikuData = await haikuRes.json();
+      const haikuText = haikuData.text || "";
+      const haikuSections = parseSections(haikuText);
+      setAnalysis(assembleSections(haikuSections));
+      setSonnetLoading(true);
+
+      // Wait for Sonnet
+      const sonnetData = await sonnetPromise;
+      const sonnetText = sonnetData.text || "";
+      const sonnetSections = parseSections(sonnetText);
+
+      // Combine all sections
+      const all = { ...haikuSections, ...sonnetSections };
+      const combined = assembleSections(all);
       setAnalysis(combined || "No analysis returned.");
+      setSonnetLoading(false);
+
+      // Cache result
+      try { sessionStorage.setItem(`analysis-${textHash}`, combined); } catch {}
+
       clearInterval(progressInterval);
       setProgress(100);
-    } catch (err) { clearInterval(progressInterval); setError(err.name === "AbortError" ? "Analysis timed out. Please try again with a smaller document." : (err.message || "Analysis failed.")); } finally { setLoading(false); }
+      setTimeEstimate("");
+    } catch (err) { clearInterval(progressInterval); setTimeEstimate(""); setError(err.name === "AbortError" ? "Analysis timed out. Please try again with a smaller document." : (err.message || "Analysis failed.")); } finally { setLoading(false); setSonnetLoading(false); }
   };
 
-  const reset = () => { setFile(null); setFilePreview(null); setAnalysis(""); setError(null); setProgress(0); setDocsOpen(false); setDocsText(""); setLastPdfText(""); };
+  const reset = () => { setFile(null); setFilePreview(null); setAnalysis(""); setError(null); setProgress(0); setDocsOpen(false); setDocsText(""); setLastPdfText(""); setExtractedText(""); setExtractReady(false); setCachedResult(false); setTimeEstimate(""); setSonnetLoading(false); };
 
   const renderMarkdown = (md) => {
     if (!md) return null;
@@ -331,8 +411,8 @@ function AnalyzerApp() {
                 : (<div style={{textAlign:"center"}}><div style={styles.uploadIcon}>&#8593;</div><p style={styles.uploadText}>Drop a GP pitch book here</p><p style={styles.uploadHint}>PDF up to 30MB</p></div>)}
             </div>
             {error && <p style={styles.error}>{error}</p>}
-            <button className="analyze-btn" onClick={analyzeDocument} disabled={!file||loading} style={styles.analyzeBtn}>{loading?"Analyzing...":"Prepare My Due Diligence"}</button>
-            {loading && (<div style={styles.progressContainer}><div style={styles.progressTrack}><div className="progress-bar" style={{...styles.progressFill,width:`${progress}%`}}/></div><p style={styles.progressText}>{progress<15?"Reading document...":progress<40?"Extracting text and financials...":progress<65?"Analyzing structure, terms, and assumptions...":progress<85?"Building your diligence questions...":"Finalizing report..."}</p></div>)}
+            <button className="analyze-btn" onClick={analyzeDocument} disabled={!file||loading||extracting||!extractReady} style={styles.analyzeBtn}>{loading?"Analyzing...":extracting?"Reading PDF...":!file?"Prepare My Due Diligence":!extractReady?"Preparing...":"Prepare My Due Diligence"}</button>
+            {loading && (<div style={styles.progressContainer}><div style={styles.progressTrack}><div className="progress-bar" style={{...styles.progressFill,width:`${progress}%`}}/></div><div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><p style={styles.progressText}>{extractedText.length > 120000 ? "Large document detected — " : ""}{progress<20?"Analyzing deal structure...":progress<50?"Extracting financials and terms...":progress<75?"Building diligence questions...":"Finalizing report..."}</p>{timeEstimate && <p style={styles.progressText}>{timeEstimate}</p>}</div></div>)}
             <div style={styles.infoBox}>
               <p style={styles.infoTitle}>What you'll get</p>
               <div className="mobile-info-grid" style={styles.infoGrid}>
@@ -344,6 +424,8 @@ function AnalyzerApp() {
         ) : (
           <div className="fade-in" style={styles.analysisContainer}>
             <div className="print-meta" style={styles.analysisMeta}><span style={styles.metaTag}>Due Diligence Prep</span><span style={styles.metaFile}>{filePreview?.name}</span></div>
+            {cachedResult && <div className="no-print" style={styles.cachedBanner}><span>Showing previous analysis for this document.</span><button onClick={()=>{setCachedResult(false);try{hashText(extractedText).then(h=>sessionStorage.removeItem(`analysis-${h}`));}catch{}analyzeDocument();}} style={styles.cachedReanalyze}>Re-analyze</button></div>}
+            {sonnetLoading && <div className="no-print" style={styles.sonnetBanner}>Loading detailed analysis...</div>}
             <div className="mobile-analysis-content" style={styles.analysisContent}>{renderMarkdown(analysis)}</div>
             <div className="no-print" style={styles.docsDropdown}>
               <button onClick={async () => {
@@ -483,6 +565,9 @@ const styles = {
   footerText:{fontSize:11,color:"var(--text-muted)"},
   footerLinks:{display:"flex",gap:8,alignItems:"center"},
   footerLink:{fontSize:11,color:"var(--text-muted)",textDecoration:"none"},
+  cachedBanner:{background:"var(--accent-light)",border:"1px solid var(--accent)",borderRadius:8,padding:"10px 16px",marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:13,color:"var(--accent)"},
+  cachedReanalyze:{fontFamily:"'Montserrat',sans-serif",fontSize:12,fontWeight:600,color:"var(--accent)",background:"none",border:"1px solid var(--accent)",borderRadius:6,padding:"4px 12px",cursor:"pointer"},
+  sonnetBanner:{background:"var(--accent-light)",borderRadius:8,padding:"10px 16px",marginBottom:16,fontSize:13,color:"var(--accent)",fontStyle:"italic",textAlign:"center"},
 };
 
 export default AnalyzerApp;

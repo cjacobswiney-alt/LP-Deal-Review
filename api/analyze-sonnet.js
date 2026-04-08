@@ -7,13 +7,20 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') { res.status(405).end(); return; }
 
   try {
-    const { pdfText, fileName, fileSizeMb, userEmail } = req.body;
+    const { pdfText, fileName, fileSizeMb, userEmail, chunk } = req.body;
     if (!pdfText || !pdfText.trim()) { res.status(400).json({ error: 'pdfText required' }); return; }
 
-    const userContent = [{ type: 'text', text: `<pitch_book_text>\n${pdfText}\n</pitch_book_text>\n\n${USER_MSG}` }];
+    // Truncate to 120k chars max
+    const trimmed = pdfText.slice(0, 120000);
 
     const feedbackList = await readApprovedFeedback();
     const feedback = buildFeedbackBlock(feedbackList);
+
+    const systemPrompt = chunk === 2
+      ? SONNET_SYSTEM + '\n\nNOTE: This is the second half of a large document. Focus on any details not covered in earlier pages. Do not repeat the Verdict — output only the Questions sections.'
+      : SONNET_SYSTEM;
+
+    const userContent = [{ type: 'text', text: `<pitch_book_text>\n${trimmed}\n</pitch_book_text>\n\n${USER_MSG}` }];
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -25,7 +32,7 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 8192,
-        system: [{ type: 'text', text: SONNET_SYSTEM + feedback, cache_control: { type: 'ephemeral' } }],
+        system: [{ type: 'text', text: systemPrompt + feedback, cache_control: { type: 'ephemeral' } }],
         messages: [{ role: 'user', content: userContent }],
       }),
     });
@@ -33,8 +40,10 @@ export default async function handler(req, res) {
     const data = await response.json();
     const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n');
 
-    // Log combined analysis (sonnet has the judgment calls, log here)
-    logAnalysis({ fileName, analysisText: text, fileSizeMb, userEmail }).catch(() => {});
+    // Log analysis (only on primary chunk)
+    if (chunk !== 2) {
+      logAnalysis({ fileName, analysisText: text, fileSizeMb, userEmail }).catch(() => {});
+    }
 
     res.status(200).json({ text });
 

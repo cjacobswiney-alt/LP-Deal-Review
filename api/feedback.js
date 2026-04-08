@@ -20,7 +20,7 @@ export default async function handler(req, res) {
           'anthropic-version': '2023-06-01',
         },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
+          model: 'claude-haiku-4-5-20251001',
           max_tokens: 1024,
           system: 'You extract actionable analyst rules from user feedback about real estate LP deal analysis. Return ONLY a JSON array of strings — each string is one concise, imperative rule (e.g. "Flag when total deal-level fees exceed GP co-invest"). No numbering, no explanation, no markdown — just the JSON array.',
           messages: [{ role: 'user', content: text.trim() }],
