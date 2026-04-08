@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase.js';
+import { getSupabase } from '../lib/supabase.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') { res.status(405).end(); return; }
@@ -7,7 +7,9 @@ export default async function handler(req, res) {
     const { email, name, company } = req.body;
     if (!email || !email.trim()) { return res.status(400).json({ error: 'email required' }); }
 
-    // Upsert — if email exists, update name/company; if not, create
+    const supabase = getSupabase();
+    if (!supabase) { return res.status(500).json({ error: 'Database not configured' }); }
+
     const { error } = await supabase
       .from('app_users')
       .upsert({ email: email.trim().toLowerCase(), name: name?.trim() || null, company: company?.trim() || null }, { onConflict: 'email' });

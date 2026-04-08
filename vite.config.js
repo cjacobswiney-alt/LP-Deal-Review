@@ -2,7 +2,7 @@ import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import { readAllFeedback, readApprovedFeedback, addFeedbackRules, deleteFeedbackRule, logAnalysis } from './lib/feedback-store.js'
 import { HAIKU_SYSTEM, SONNET_SYSTEM, DOCS_SYSTEM, USER_MSG, DOCS_USER_MSG, buildFeedbackBlock, parseSections, orderSections } from './lib/prompts.js'
-import { supabase } from './lib/supabase.js'
+import { getSupabase } from './lib/supabase.js'
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
@@ -76,7 +76,9 @@ export default defineConfig(({ mode }) => {
               try {
                 const { email, name, company } = JSON.parse(body);
                 if (!email || !email.trim()) { res.statusCode = 400; res.end(JSON.stringify({ error: 'email required' })); return; }
-                const { error } = await supabase
+                const sb = getSupabase();
+                if (!sb) { res.statusCode = 500; res.end(JSON.stringify({ error: 'Supabase not configured' })); return; }
+                const { error } = await sb
                   .from('app_users')
                   .upsert({ email: email.trim().toLowerCase(), name: name?.trim() || null, company: company?.trim() || null }, { onConflict: 'email' });
                 if (error) { res.statusCode = 500; res.end(JSON.stringify({ error: error.message })); return; }
