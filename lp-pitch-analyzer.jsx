@@ -1,12 +1,17 @@
 import { useState, useRef, useCallback } from "react";
 import * as pdfjsLib from "pdfjs-dist";
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.9.155/build/pdf.worker.min.js";
+pdfjsLib.GlobalWorkerOptions.workerSrc = "";
 
 async function extractPdfText(file) {
   try {
     const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
+    const pdf = await pdfjsLib.getDocument({
+      data: new Uint8Array(arrayBuffer),
+      useWorkerFetch: false,
+      isEvalSupported: false,
+      useSystemFonts: true,
+    }).promise;
     const pages = [];
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
@@ -16,7 +21,7 @@ async function extractPdfText(file) {
     return pages.join("\n\n");
   } catch (e) {
     console.error("PDF extraction error:", e);
-    throw new Error("Could not read this PDF. Please try a different file.");
+    throw new Error("Could not read this PDF: " + e.message);
   }
 }
 
