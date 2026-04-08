@@ -1,7 +1,7 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import { readAllFeedback, readApprovedFeedback, addFeedbackRules, deleteFeedbackRule, logAnalysis } from './lib/feedback-store.js'
-import { HAIKU_SYSTEM, SONNET_SYSTEM, USER_MSG, buildFeedbackBlock, parseSections, orderSections } from './lib/prompts.js'
+import { HAIKU_SYSTEM, SONNET_SYSTEM, DOCS_SYSTEM, USER_MSG, DOCS_USER_MSG, buildFeedbackBlock, parseSections, orderSections } from './lib/prompts.js'
 import { supabase } from './lib/supabase.js'
 
 export default defineConfig(({ mode }) => {
@@ -135,6 +135,31 @@ export default defineConfig(({ mode }) => {
                 const data = await response.json();
                 const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n');
                 logAnalysis({ fileName, analysisText: text, fileSizeMb, userEmail }).catch(() => {});
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ text }));
+              } catch (err) { res.statusCode = 500; res.end(JSON.stringify({ error: err.message })); }
+            });
+          });
+
+          // --- /api/analyze-docs (on-demand) ---
+          server.middlewares.use('/api/analyze-docs', async (req, res) => {
+            if (req.method !== 'POST') { res.statusCode = 405; res.end(); return; }
+            let body = '';
+            req.on('data', chunk => body += chunk);
+            req.on('end', async () => {
+              try {
+                const { pdfText } = JSON.parse(body);
+                if (!pdfText || !pdfText.trim()) { res.statusCode = 400; res.end(JSON.stringify({ error: 'pdfText required' })); return; }
+                const trimmed = pdfText.slice(0, 80000);
+                const response = await fetch('https://api.anthropic.com/v1/messages', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+                  body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 2048,
+                    system: DOCS_SYSTEM,
+                    messages: [{ role: 'user', content: `<pitch_book_text>\n${trimmed}\n</pitch_book_text>\n\n${DOCS_USER_MSG}` }] }),
+                });
+                const data = await response.json();
+                const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n');
                 res.setHeader('Content-Type', 'application/json');
                 res.end(JSON.stringify({ text }));
               } catch (err) { res.statusCode = 500; res.end(JSON.stringify({ error: err.message })); }

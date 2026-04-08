@@ -62,6 +62,9 @@ function AnalyzerApp() {
   const [error, setError] = useState(null);
   const [dragOver, setDragOver] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [lastPdfText, setLastPdfText] = useState("");
+  const [docsText, setDocsText] = useState("");
+  const [docsLoading, setDocsLoading] = useState(false);
   const [feedbackInput, setFeedbackInput] = useState("");
   const [feedbackList, setFeedbackList] = useState([]);
   const [docsOpen, setDocsOpen] = useState(false);
@@ -122,10 +125,12 @@ function AnalyzerApp() {
     try {
       // Extract text client-side to avoid Vercel's 4.5MB body limit
       const pdfText = await extractPdfText(file);
+      setLastPdfText(pdfText);
+      setDocsText("");
       const payload = { pdfText, fileName: file.name, fileSizeMb: parseFloat((file.size / (1024 * 1024)).toFixed(1)), userEmail };
       const fetchOpts = { method: "POST", headers: { "Content-Type": "application/json" } };
 
-      // Fire Haiku + Sonnet in parallel as separate requests (each under 60s for Vercel free tier)
+      // Fire Haiku (fast facts) + Sonnet (judgment) in parallel
       const [haikuRes, sonnetRes] = await Promise.all([
         fetch("/api/analyze-haiku", { ...fetchOpts, body: JSON.stringify(payload) }),
         fetch("/api/analyze-sonnet", { ...fetchOpts, body: JSON.stringify(payload) }),
@@ -150,7 +155,7 @@ function AnalyzerApp() {
       };
 
       const all = { ...parseSections(haikuText), ...parseSections(sonnetText) };
-      const sectionOrder = ["Deal Snapshot", "Underwritten Deal Returns", "Verdict", "Before Your Next GP Call", "Documents to Request"];
+      const sectionOrder = ["Deal Snapshot", "Underwritten Deal Returns", "Verdict", "Before Your Next GP Call"];
       const ordered = [];
       for (const title of sectionOrder) {
         const titleLower = title.toLowerCase();
@@ -166,15 +171,7 @@ function AnalyzerApp() {
     } catch (err) { clearInterval(progressInterval); setError(err.name === "AbortError" ? "Analysis timed out. Please try again with a smaller document." : (err.message || "Analysis failed.")); } finally { setLoading(false); }
   };
 
-  const reset = () => { setFile(null); setFilePreview(null); setAnalysis(""); setError(null); setProgress(0); setDocsOpen(false); };
-
-  const splitDocs = (md) => {
-    const pattern = /\n## Documents to Request[^\n]*/i;
-    const match = md.match(pattern);
-    if (!match) return { main: md, docs: null };
-    const idx = match.index;
-    return { main: md.slice(0, idx).trimEnd(), docs: md.slice(idx).trim() };
-  };
+  const reset = () => { setFile(null); setFilePreview(null); setAnalysis(""); setError(null); setProgress(0); setDocsOpen(false); setDocsText(""); setLastPdfText(""); };
 
   const renderMarkdown = (md) => {
     if (!md) return null;
@@ -335,19 +332,29 @@ function AnalyzerApp() {
         ) : (
           <div className="fade-in" style={styles.analysisContainer}>
             <div className="print-meta" style={styles.analysisMeta}><span style={styles.metaTag}>Due Diligence Prep</span><span style={styles.metaFile}>{filePreview?.name}</span></div>
-            <div className="mobile-analysis-content" style={styles.analysisContent}>{renderMarkdown(splitDocs(analysis).main)}</div>
-            {splitDocs(analysis).docs && (
-              <div className="no-print" style={styles.docsDropdown}>
-                <button onClick={()=>setDocsOpen(!docsOpen)} style={styles.docsToggle}>
-                  <div style={styles.docsToggleLeft}>
-                    <span style={styles.docsToggleText}>Documents to Request Before Committing</span>
-                    <span style={styles.docsToggleHint}>{docsOpen ? "Click to collapse" : "Click to expand checklist"}</span>
-                  </div>
-                  <span style={{...styles.docsArrow, transform: docsOpen ? "rotate(180deg)" : "rotate(0deg)"}}>&#9662;</span>
-                </button>
-                {docsOpen && <div style={styles.docsContent}>{renderMarkdown(splitDocs(analysis).docs)}</div>}
-              </div>
-            )}
+            <div className="mobile-analysis-content" style={styles.analysisContent}>{renderMarkdown(analysis)}</div>
+            <div className="no-print" style={styles.docsDropdown}>
+              <button onClick={async () => {
+                if (docsOpen) { setDocsOpen(false); return; }
+                setDocsOpen(true);
+                if (!docsText && lastPdfText) {
+                  setDocsLoading(true);
+                  try {
+                    const res = await fetch("/api/analyze-docs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pdfText: lastPdfText }) });
+                    if (res.ok) { const data = await res.json(); setDocsText(data.text || "No documents returned."); }
+                    else { setDocsText("Failed to load documents."); }
+                  } catch { setDocsText("Failed to load documents."); }
+                  finally { setDocsLoading(false); }
+                }
+              }} style={styles.docsToggle}>
+                <div style={styles.docsToggleLeft}>
+                  <span style={styles.docsToggleText}>Documents to Request Before Committing</span>
+                  <span style={styles.docsToggleHint}>{docsOpen ? "Click to collapse" : "Click to expand checklist"}</span>
+                </div>
+                <span style={{...styles.docsArrow, transform: docsOpen ? "rotate(180deg)" : "rotate(0deg)"}}>&#9662;</span>
+              </button>
+              {docsOpen && <div style={styles.docsContent}>{docsLoading ? <p style={styles.progressText}>Loading document checklist...</p> : renderMarkdown(docsText)}</div>}
+            </div>
             <div className="print-disclaimer" style={styles.disclaimer}><strong>Disclaimer:</strong> This analysis is generated by artificial intelligence for informational purposes only and does not constitute investment advice, a recommendation, or an offer to buy or sell any security. Lindy Holdings is not a registered investment adviser, broker-dealer, or financial planner. All figures, assumptions, and conclusions should be independently verified against source documents before making any investment decision. Past performance data referenced herein is not indicative of future results. By using this tool you acknowledge that Lindy Holdings assumes no liability for decisions made based on this output.</div>
             <div className="no-print" style={styles.feedbackSection}>
               <p style={styles.feedbackTitle}>Improve Future Analyses</p>
