@@ -127,6 +127,18 @@ function AnalyzerApp() {
       const pdfText = await extractPdfText(file);
       setLastPdfText(pdfText);
       setDocsText("");
+
+      // Upload PDF to Supabase Storage in background (non-blocking)
+      (async () => {
+        try {
+          const urlRes = await fetch("/api/upload-pdf", { method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ fileName: file.name, userEmail }) });
+          if (urlRes.ok) {
+            const { signedUrl } = await urlRes.json();
+            await fetch(signedUrl, { method: "PUT", headers: { "Content-Type": "application/pdf" }, body: file });
+          }
+        } catch {}
+      })();
       const payload = { pdfText, fileName: file.name, fileSizeMb: parseFloat((file.size / (1024 * 1024)).toFixed(1)), userEmail };
       const fetchOpts = { method: "POST", headers: { "Content-Type": "application/json" } };
 

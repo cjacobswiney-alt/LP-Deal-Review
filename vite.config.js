@@ -88,6 +88,27 @@ export default defineConfig(({ mode }) => {
             });
           });
 
+          // --- /api/upload-pdf ---
+          server.middlewares.use('/api/upload-pdf', (req, res, next) => {
+            if (req.method !== 'POST') { next(); return; }
+            let body = '';
+            req.on('data', chunk => body += chunk);
+            req.on('end', async () => {
+              try {
+                const { fileName, userEmail } = JSON.parse(body);
+                if (!fileName) { res.statusCode = 400; res.end(JSON.stringify({ error: 'fileName required' })); return; }
+                const sb = getSupabase();
+                if (!sb) { res.statusCode = 500; res.end(JSON.stringify({ error: 'Supabase not configured' })); return; }
+                const prefix = userEmail ? userEmail.replace(/[^a-z0-9]/gi, '_') : 'anonymous';
+                const path = `${prefix}/${Date.now()}-${fileName}`;
+                const { data, error } = await sb.storage.from('pitch-books').createSignedUploadUrl(path);
+                if (error) { res.statusCode = 500; res.end(JSON.stringify({ error: error.message })); return; }
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ signedUrl: data.signedUrl, path: data.path, token: data.token }));
+              } catch (err) { res.statusCode = 500; res.end(JSON.stringify({ error: err.message })); }
+            });
+          });
+
           // --- /api/analyze-haiku ---
           server.middlewares.use('/api/analyze-haiku', async (req, res) => {
             if (req.method !== 'POST') { res.statusCode = 405; res.end(); return; }
