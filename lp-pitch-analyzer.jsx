@@ -116,10 +116,14 @@ function AnalyzerApp() {
     try {
       // Extract text client-side to avoid Vercel's 4.5MB body limit
       const pdfText = await extractPdfText(file);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 150000); // 2.5 min timeout
       const response = await fetch("/api/analyze", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pdfText, fileName: file.name, fileSizeMb: parseFloat((file.size / (1024 * 1024)).toFixed(1)), userEmail }),
+        signal: controller.signal,
       });
+      clearTimeout(timeout);
       if (!response.ok) { const err = await response.json().catch(() => ({})); throw new Error(err?.error?.message || `API error: ${response.status}`); }
       // Handle both SSE (local dev) and JSON (Vercel) responses
       const contentType = response.headers.get("content-type") || "";
@@ -148,12 +152,17 @@ function AnalyzerApp() {
         }
         if (!fullText) setAnalysis("No analysis returned.");
       } else {
-        const data = await response.json();
-        setAnalysis(data.analysis || "No analysis returned.");
+        const text = await response.text();
+        try {
+          const data = JSON.parse(text);
+          setAnalysis(data.analysis || "No analysis returned.");
+        } catch {
+          setAnalysis(text || "No analysis returned.");
+        }
       }
       clearInterval(progressInterval);
       setProgress(100);
-    } catch (err) { clearInterval(progressInterval); setError(err.message || "Analysis failed."); } finally { setLoading(false); }
+    } catch (err) { clearInterval(progressInterval); setError(err.name === "AbortError" ? "Analysis timed out. Please try again with a smaller document." : (err.message || "Analysis failed.")); } finally { setLoading(false); }
   };
 
   const reset = () => { setFile(null); setFilePreview(null); setAnalysis(""); setError(null); setProgress(0); setDocsOpen(false); };
